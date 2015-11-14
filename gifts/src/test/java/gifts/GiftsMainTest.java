@@ -1,13 +1,12 @@
 package gifts;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import people.Group;
 import people.Member;
 
-public class GiftsGenerator {
+public class GiftsMainTest {
 
 	public static void main(String[] args) {
 		GiftsFactory f = new GiftsFactory();
@@ -32,19 +31,6 @@ public class GiftsGenerator {
 		annelise.setPartner(sebastien);
 		pierre.setPartner(dany);
 		flore.setPartner(manuel);
-
-		// f.addMember(marine);
-		// f.addMember(vincent);
-		// f.addMember(estelle);
-		// f.addMember(nicolas);
-		// f.addMember(virginie);
-		// f.addMember(thomas);
-		// f.addMember(annelise);
-		// f.addMember(sebastien);
-		// f.addMember(pierre);
-		// f.addMember(dany);
-		// f.addMember(flore);
-		// f.addMember(manuel);
 
 		f.addMembers(marine, vincent, estelle, nicolas, virginie, thomas, annelise, sebastien, pierre, dany, flore, manuel);
 
