@@ -9,7 +9,7 @@ import people.Member;
 public class GiftsMainTest {
 
 	public static void main(String[] args) {
-		GiftsFactory f = new GiftsFactory();
+		GiftsGenerator gen = new GiftsGenerator();
 		Group convert = new Group();
 		Group ruch = new Group();
 		Member vincent = new Member("Vincent", ruch);
@@ -32,9 +32,9 @@ public class GiftsMainTest {
 		pierre.setPartner(dany);
 		flore.setPartner(manuel);
 
-		f.addMembers(marine, vincent, estelle, nicolas, virginie, thomas, annelise, sebastien, pierre, dany, flore, manuel);
+		gen.addMembers(marine, vincent, estelle, nicolas, virginie, thomas, annelise, sebastien, pierre, dany, flore, manuel);
 
-		Map<Member, Member> result = f.generateList2();
+		Map<Member, Member> result = gen.generateList();
 
 		Set<Member> keys = result.keySet();
 		for (Member m : keys) {

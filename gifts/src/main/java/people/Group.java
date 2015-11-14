@@ -6,27 +6,47 @@ import java.util.List;
 
 import org.apache.commons.math3.util.FastMath;
 
-public class Group implements Comparable<Group> , Comparator<Group>{
+/**
+ * Groupe representant par exemple une famille. Il s'agit basiquement d'une liste de participants.
+ * 
+ * @author Vincent
+ */
+public class Group implements Comparable<Group>, Comparator<Group> {
 
-	final List<Member> members;
+	/** Membres du groupe */
+	final private List<Member> members;
 
+	/**
+	 * Constructeur de base.
+	 */
 	public Group() {
 		members = new ArrayList<Member>();
 	}
 
+	/**
+	 * Ajout d'un membre au groupe.
+	 * 
+	 * @param m membre a ajouter
+	 */
 	public void addMember(Member m) {
 		members.add(m);
 	}
 
-	public boolean isInGroup(Member m) {
-		return members.contains(m);
-	}
-
+	/**
+	 * Nombre de personnes dans le groupe
+	 * 
+	 * @return la taille du groupe
+	 */
 	public int getSize() {
 		return members.size();
 	}
-	
-	public List<Member> getMembers(){
+
+	/**
+	 * Recuperation des membres du groupe.
+	 * 
+	 * @return la liste des membres
+	 */
+	public List<Member> getMembers() {
 		return members;
 	}
 
