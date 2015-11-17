@@ -1,13 +1,14 @@
-package gifts;
+package fr.free.hd.ruch.giftsrandomizer.business;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import people.Group;
-import people.Member;
+import fr.free.hd.ruch.giftsrandomizer.people.Group;
+import fr.free.hd.ruch.giftsrandomizer.people.Member;
 
 /**
  * Classe de generation du mapping entre participants
@@ -123,7 +124,4 @@ public class GiftsGenerator {
 		s.removeAll(given);
 	}
 
-	public static void main(String[] args) {
-		System.out.println("use as library");
-	}
 }

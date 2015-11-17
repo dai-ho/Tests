@@ -1,4 +1,4 @@
-package people;
+package fr.free.hd.ruch.giftsrandomizer.people;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -11,14 +11,21 @@ import java.util.List;
  */
 public class Group implements Comparable<Group>, Comparator<Group> {
 
+	final String name;
+
 	/** Membres du groupe */
 	final private List<Member> members;
 
 	/**
 	 * Constructeur de base.
 	 */
-	public Group() {
+	public Group(String name) {
+		this.name = name;
 		members = new ArrayList<Member>();
+	}
+
+	public String getName() {
+		return name;
 	}
 
 	/**
@@ -60,5 +67,10 @@ public class Group implements Comparable<Group>, Comparator<Group> {
 
 	public int compare(Group o1, Group o2) {
 		return o1.compareTo(o2);
+	}
+
+	@Override
+	public String toString() {
+		return name;
 	}
 }
