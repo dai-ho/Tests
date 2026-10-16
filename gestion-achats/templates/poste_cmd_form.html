@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block titre %}Poste commande{% endblock %}
+{% block contenu %}
+<a href="{{ url_for('detail_commande', cmd_id=cmd.id) }}" class="small">← Commande {{ cmd.reference }}</a>
+<h3>{{ 'Modifier le poste ' ~ poste.numero if poste.id else 'Nouveau poste' }} – Commande {{ cmd.reference }}</h3>
+<form method="post" class="card card-body" style="max-width: 55rem">
+  <div class="row g-3">
+    <div class="col-md-3"><label class="form-label">Poste *</label>
+      <input name="numero" type="number" class="form-control" required value="{{ poste.numero or '' }}"></div>
+    <div class="col-md-9"><label class="form-label">Poste de DA associé</label>
+      <input class="form-control mb-1" type="search" placeholder="Rechercher un poste de DA…" id="recherche-poste-da">
+      <select name="poste_da_id" class="form-select" id="poste-da" size="6">
+        <option value="" {{ 'selected' if not poste.poste_da_id }}>— aucun —</option>
+        {% for pd in postes_da %}
+          <option value="{{ pd.id }}" data-nom="{{ pd.nom }}" data-livraison="{{ pd.date_livraison or '' }}"
+            {{ 'selected' if poste.poste_da_id == pd.id }}>
+            {{ pd.da.reference }} / {{ pd.numero }} – {{ pd.nom }}{% if pd.montant is not none %} ({{ pd.montant|euros }}){% endif %}{% if pd.code_imputation %} [{{ pd.code_imputation }}]{% endif %}
+          </option>
+        {% endfor %}
+      </select></div>
+    <div class="col-12"><label class="form-label">Nom *</label>
+      <input name="nom" id="nom" class="form-control" required value="{{ poste.nom or '' }}">
+      <div class="form-text">Pré-rempli avec le nom du poste de DA si vide.</div></div>
+    <div class="col-md-4"><label class="form-label">Date de livraison</label>
+      <input name="date_livraison" id="date-livraison" type="date" class="form-control" value="{{ poste.date_livraison or '' }}"></div>
+    <div class="col-md-4"><label class="form-label">PTF (proposition technique et financière)</label>
+      <input name="ptf" class="form-control" value="{{ poste.ptf or '' }}"></div>
+    <div class="col-md-4"><label class="form-label">Référence du livrable</label>
+      <input name="ref_livrable" class="form-control" value="{{ poste.ref_livrable or '' }}"></div>
+    <div class="col-12"><div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" name="csf" id="csf" {{ 'checked' if poste.csf }}>
+      <label class="form-check-label" for="csf">Certification de service fait (CSF) réalisée</label></div></div>
+  </div>
+  <div class="d-flex gap-2 mt-4">
+    <button class="btn btn-primary">Enregistrer</button>
+    {% if not poste.id %}<button class="btn btn-outline-primary" name="continuer" value="1">Enregistrer et ajouter un autre poste</button>{% endif %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('detail_commande', cmd_id=cmd.id) }}">Annuler</a>
+  </div>
+</form>
+<script>
+  const select = document.getElementById("poste-da");
+  document.getElementById("recherche-poste-da").addEventListener("input", (e) => {
+    const mots = e.target.value.toLowerCase().split(/\s+/).filter(Boolean);
+    for (const opt of select.options) {
+      opt.hidden = opt.value !== "" && !mots.every((m) => opt.text.toLowerCase().includes(m));
+    }
+  });
+  select.addEventListener("change", () => {
+    const opt = select.selectedOptions[0];
+    if (!opt || !opt.value) return;
+    const nom = document.getElementById("nom"), liv = document.getElementById("date-livraison");
+    if (!nom.value) nom.value = opt.dataset.nom;
+    if (!liv.value) liv.value = opt.dataset.livraison;
+  });
+</script>
+{% endblock %}

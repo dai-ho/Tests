@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros %}
+{% block titre %}Commandes{% endblock %}
+{% block contenu %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="mb-0">Commandes</h3>
+  <a class="btn btn-primary" href="{{ url_for('form_commande') }}">+ Nouvelle commande</a>
+</div>
+{{ macros.filtre("table-cmd") }}
+<div class="table-responsive"><table class="table table-hover" id="table-cmd">
+  <thead><tr>
+    <th data-tri>Référence</th><th data-tri class="num">Postes</th><th data-tri>DA liées</th>
+    <th data-tri class="num">CSF faits</th><th data-tri>Prochaine livraison</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for c in cmds %}
+    {% set non_certifies = c.postes|rejectattr('csf')|selectattr('date_livraison')|list %}
+    {% set prochaine = (non_certifies|map(attribute='date_livraison')|min) if non_certifies else none %}
+    <tr class="{{ 'table-success' if c.postes and c.nb_certifies == c.postes|length }}">
+      <td><a href="{{ url_for('detail_commande', cmd_id=c.id) }}"><strong>{{ c.reference }}</strong></a></td>
+      <td class="num">{{ c.postes|length }}</td>
+      <td>{{ c.postes|selectattr('poste_da')|map(attribute='poste_da.da.reference')|unique|join(', ') }}</td>
+      <td class="num">{{ c.nb_certifies }} / {{ c.postes|length }}</td>
+      <td data-valeur="{{ prochaine or '' }}" class="{{ 'text-danger fw-bold' if prochaine and prochaine < aujourdhui }}">{{ prochaine|date_fr }}</td>
+      <td class="actions"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('detail_commande', cmd_id=c.id) }}">Ouvrir</a></td>
+    </tr>
+  {% else %}<tr><td colspan="6" class="text-muted">Aucune commande.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}

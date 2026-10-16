@@ -1,0 +1,13 @@
+body { background: #f4f6f9; }
+.navbar-brand { font-weight: 600; }
+.table-responsive { background: #fff; border-radius: .5rem; }
+table.table { margin-bottom: 0; font-size: .9rem; }
+th[data-tri] { cursor: pointer; user-select: none; white-space: nowrap; }
+th[data-tri]::after { content: " ⇅"; color: #adb5bd; }
+th[data-tri].asc::after { content: " ▲"; color: #212529; }
+th[data-tri].desc::after { content: " ▼"; color: #212529; }
+td.num, th.num { text-align: right; white-space: nowrap; }
+td.actions { white-space: nowrap; text-align: right; }
+td.actions form { display: inline; }
+.carte-stat .valeur { font-size: 1.8rem; font-weight: 600; }
+.legende span { display: inline-block; padding: .1rem .6rem; border-radius: .25rem; margin-right: .3rem; font-size: .8rem; }

@@ -1,0 +1,36 @@
+{% macro filtre(table_id, placeholder="Filtrer (plusieurs mots possibles)…") %}
+<div class="d-flex align-items-center gap-3 mb-2">
+  <input type="search" class="form-control" style="max-width: 28rem" data-filtre="{{ table_id }}" placeholder="{{ placeholder }}">
+  <small class="text-muted" id="{{ table_id }}-compteur"></small>
+</div>
+{% endmacro %}
+
+{% macro bouton_supprimer(action, message) %}
+<form method="post" action="{{ action }}" data-confirmer="{{ message }}">
+  <button class="btn btn-sm btn-outline-danger" title="Supprimer">✕</button>
+</form>
+{% endmacro %}
+
+{% macro badge_csf(poste) %}
+<form method="post" action="{{ url_for('basculer_csf', poste_id=poste.id) }}" class="d-inline">
+  <button class="btn btn-sm {{ 'btn-success' if poste.csf else 'btn-outline-secondary' }}" title="Cliquer pour basculer">
+    {{ 'Fait' if poste.csf else 'À faire' }}
+  </button>
+</form>
+{% endmacro %}
+
+{% macro legende_da() %}
+<div class="legende small text-muted my-2">
+  <span class="bg-success-subtle border">tous les postes de commande certifiés</span>
+  <span class="bg-info-subtle border">commandé, certification en cours</span>
+  <span class="bg-danger-subtle border">non commandé, date de livraison dépassée</span>
+</div>
+{% endmacro %}
+
+{% macro legende_cmd() %}
+<div class="legende small text-muted my-2">
+  <span class="bg-success-subtle border">CSF fait</span>
+  <span class="bg-danger-subtle border">livraison dépassée sans CSF</span>
+  <span class="bg-warning-subtle border">pas de référence de livrable</span>
+</div>
+{% endmacro %}
