@@ -1,5 +1,5 @@
 """Import / export Excel (.xlsx) au format du fichier « Budgets GT »
-(onglets « Suivi DA » et « Suivi BdC »)."""
+(onglets « Suivi DA » et « Suivi BdC », plus « Marchés » ajouté par l'application)."""
 import re
 import unicodedata
 from datetime import date, datetime
@@ -9,7 +9,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from models import Commande, DemandeAchat, PosteCommande, PosteDA, db
+from models import Commande, DemandeAchat, Marche, PosteCommande, PosteDA, db
 
 # Colonnes reconnues : clé interne -> en-têtes acceptés (le premier sert à l'export).
 # Les en-têtes sont comparés sans accents, sans casse ni ponctuation.
@@ -34,7 +34,8 @@ COLONNES_CMD = {
     "societe": ["Société", "Fournisseur"],
     "activite": ["Activité"],
     "da_designation": ["Imputation", "Désignation DA"],
-    "reference": ["BDC/Marché", "BDC", "N° BDC", "N° Commande", "Commande", "Marché"],
+    "reference": ["BDC/Marché", "BDC", "N° BDC", "N° Commande", "Commande"],
+    "marche": ["N° marché", "Marché", "Numéro de marché"],
     "numero": ["poste du BDC", "Poste", "Poste commande"],
     "nom": ["Désignation", "Nom", "Libellé"],
     "montant": ["Montant"],
@@ -43,6 +44,15 @@ COLONNES_CMD = {
     "ptf": ["PAF", "PTF"],
     "csf": ["CSF"],
     "ref_livrable": ["CR pour CSF", "Référence livrable", "Livrable"],
+}
+
+COLONNES_MARCHE = {
+    "reference": ["Marché", "N° marché", "Référence"],
+    "titulaire": ["Titulaire", "Fournisseur", "Société"],
+    "lot": ["Lot"],
+    "date_echeance": ["Échéance", "Date d'échéance", "Fin"],
+    "montant_max": ["Montant maximal", "Montant max", "Maximum", "Plafond"],
+    "commentaire": ["Commentaire", "Remarque"],
 }
 
 VRAI = {"oui", "o", "x", "1", "fait", "ok", "yes", "y", "vrai", "true", "certifie"}
@@ -137,19 +147,22 @@ def _lire_feuille(ws, colonnes, obligatoires):
 
 
 def _trouver_feuilles(wb):
-    feuille_da = feuille_cmd = None
+    feuille_da = feuille_cmd = feuille_marches = None
     for ws in wb.worksheets:
-        mots = _normaliser(ws.title).split()
-        if feuille_cmd is None and ({"bdc", "bc", "commandes", "commande"} & set(mots)):
+        mots = set(_normaliser(ws.title).split())
+        if feuille_cmd is None and ({"bdc", "bc", "commandes", "commande"} & mots):
             feuille_cmd = ws
-        elif feuille_da is None and ("da" in mots or "demande" in mots or "demandes" in mots):
+        elif feuille_marches is None and ({"marche", "marches"} & mots):
+            feuille_marches = ws
+        elif feuille_da is None and ({"da", "demande", "demandes"} & mots):
             feuille_da = ws
-    return feuille_da, feuille_cmd
+    return feuille_da, feuille_cmd, feuille_marches
 
 
 def _vider():
     PosteCommande.query.delete()
     Commande.query.delete()
+    Marche.query.delete()
     PosteDA.query.delete()
     DemandeAchat.query.delete()
     db.session.flush()
@@ -211,6 +224,31 @@ def _importer_da(feuille, erreurs):
     return nb
 
 
+def _importer_marches(feuille, erreurs):
+    marches = {m.reference: m for m in Marche.query}
+    nb = 0
+    for v in _lire_feuille(feuille, COLONNES_MARCHE, {"reference"}):
+        try:
+            ref = _texte(v.get("reference"))
+            if not ref:
+                continue
+            champs = dict(titulaire=_texte(v.get("titulaire")), lot=_texte(v.get("lot")),
+                          date_echeance=_date(v.get("date_echeance")),
+                          montant_max=_montant(v.get("montant_max")),
+                          commentaire=_texte(v.get("commentaire")))
+            marche = marches.get(ref)
+            if marche is None:
+                marche = marches[ref] = Marche(reference=ref)
+                db.session.add(marche)
+            for cle, valeur in champs.items():
+                setattr(marche, cle, valeur)
+            nb += 1
+        except (ValueError, TypeError) as e:
+            erreurs.append(f"{feuille.title} ligne {v['_ligne']} : {e}")
+    db.session.flush()
+    return nb
+
+
 def _trouver_poste_da(v, par_designation, par_cle):
     """Retrouve le poste de DA d'une ligne de BdC : par la désignation (colonne
     « Imputation », comme la RECHERCHEV d'Excel), sinon par « DA@poste »."""
@@ -237,16 +275,20 @@ def _importer_cmd(feuille, erreurs):
         par_designation.setdefault(_normaliser(p.nom), []).append(p)
         if p.da.reference:
             par_cle[(p.da.reference, p.numero)] = p
-    cmds = {c.reference: c for c in Commande.query.all()}
+    cmds = {c.reference: c for c in Commande.query.filter(Commande.reference.isnot(None))}
+    # Postes de BdC sans n° : retrouvés par leur désignation lors d'une mise à jour
+    sans_numero = {p.nom: p for p in PosteCommande.query.join(Commande)
+                   .filter(Commande.reference.is_(None))}
+    marches = {m.reference: m for m in Marche.query}
     nb = 0
     for v in _lire_feuille(feuille, COLONNES_CMD, {"reference", "numero"}):
         ou = f"{feuille.title} ligne {v['_ligne']}"
         try:
             ref, numero = _texte(v.get("reference")), _entier(v.get("numero"))
-            if not ref or numero is None:
-                if _texte(v.get("nom")) or _texte(v.get("da_designation")):
-                    raise ValueError("n° de BdC ou de poste manquant")
-                continue
+            if not ref and not (_texte(v.get("nom")) or _texte(v.get("da_designation"))):
+                continue  # ligne vide ou ne contenant que des formules
+            if ref and numero is None:
+                raise ValueError("n° de poste manquant")
             csf = _booleen(v.get("csf"))
             poste_da, alerte = _trouver_poste_da(v, par_designation, par_cle)
             champs = dict(
@@ -261,14 +303,35 @@ def _importer_cmd(feuille, erreurs):
                 ref_livrable=_texte(v.get("ref_livrable")) if csf else None,
                 poste_da=poste_da,
             )
-            cmd = cmds.get(ref)
-            if cmd is None:
-                cmd = cmds[ref] = Commande(reference=ref)
-                db.session.add(cmd)
-            poste = next((p for p in cmd.postes if p.numero == numero), None)
-            if poste is None:
-                poste = PosteCommande(numero=numero)
-                cmd.postes.append(poste)
+            ref_marche = _texte(v.get("marche"))
+            marche = marches.get(ref_marche) if ref_marche else None
+            if ref_marche and marche is None:
+                # Marché inconnu : créé avec sa seule référence, à compléter dans l'onglet Marchés
+                marche = marches[ref_marche] = Marche(reference=ref_marche,
+                                                      titulaire=champs["societe"])
+                db.session.add(marche)
+                erreurs.append(f"{ou} : marché {ref_marche} créé, à compléter "
+                               "(montant maximal, échéance)")
+            if ref:
+                cmd = cmds.get(ref)
+                if cmd is None:
+                    cmd = cmds[ref] = Commande(reference=ref)
+                    db.session.add(cmd)
+                poste = next((p for p in cmd.postes if p.numero == numero), None)
+                if poste is None:
+                    poste = PosteCommande(numero=numero)
+                    cmd.postes.append(poste)
+            else:
+                # BdC dont le n° n'est pas encore connu : un BdC par ligne
+                poste = sans_numero.get(champs["nom"])
+                if poste is None:
+                    cmd = Commande()
+                    db.session.add(cmd)
+                    poste = sans_numero[champs["nom"]] = PosteCommande(numero=numero or 10)
+                    cmd.postes.append(poste)
+                cmd = poste.commande
+            if ref_marche:
+                cmd.marche = marche
             for cle, valeur in champs.items():
                 setattr(poste, cle, valeur)
             if alerte:
@@ -282,12 +345,14 @@ def _importer_cmd(feuille, erreurs):
 def importer(fichier, vider=False):
     """Importe un classeur. Renvoie (nb_postes_da, nb_postes_cmd, erreurs)."""
     wb = load_workbook(fichier, data_only=True, read_only=True)
-    feuille_da, feuille_cmd = _trouver_feuilles(wb)
+    feuille_da, feuille_cmd, feuille_marches = _trouver_feuilles(wb)
     if feuille_da is None and feuille_cmd is None:
         raise ValueError("aucun onglet « Suivi DA » ou « Suivi BdC » trouvé")
     if vider:
         _vider()
     erreurs = []
+    if feuille_marches is not None:
+        _importer_marches(feuille_marches, erreurs)
     nb_da = _importer_da(feuille_da, erreurs) if feuille_da is not None else 0
     nb_cmd = _importer_cmd(feuille_cmd, erreurs) if feuille_cmd is not None else 0
     db.session.commit()
@@ -299,9 +364,13 @@ def importer(fichier, vider=False):
 ENTETES_DA = ["Année", "Projet", "DA", "poste", "Désignation", "DA@poste", "Valeur",
               "Centre de coût", "Budget", "Imputé", "Disponible", "Statut", "Remarque",
               "Date de livraison", "Demandeur", "Certificateur"]
-ENTETES_CMD = ["Société", "Activité", "Imputation", "BDC/Marché", "poste du BDC", "Désignation",
+ENTETES_CMD = ["Société", "Activité", "Imputation", "BDC/Marché", "N° marché", "poste du BDC",
+               "Désignation",
                "Montant", "Echéance", "DA@poste", "PAF", "CSF", "CR pour CSF"]
-COLONNES_EUROS = {"Valeur", "Budget", "Imputé", "Disponible", "Montant"}
+ENTETES_MARCHE = ["Marché", "Titulaire", "Lot", "Échéance", "Montant maximal", "Commandé", "Reste",
+                  "Commentaire"]
+COLONNES_EUROS = {"Valeur", "Budget", "Imputé", "Disponible", "Montant", "Montant maximal",
+                  "Commandé", "Reste"}
 
 
 def _entier_si_possible(s):
@@ -334,7 +403,8 @@ def exporter():
                  .order_by(DemandeAchat.reference.is_(None), DemandeAchat.reference,
                            PosteDA.numero).all())
     postes_cmd = (PosteCommande.query.join(Commande)
-                  .order_by(Commande.reference, PosteCommande.numero).all())
+                  .order_by(Commande.reference.isnot(None), Commande.reference,
+                            PosteCommande.numero).all())
     wb = Workbook()
     ws_da = wb.active
     ws_da.title = "Suivi DA"
@@ -345,9 +415,14 @@ def exporter():
         for p in postes_da])
     _ecrire_feuille(wb.create_sheet("Suivi BdC"), ENTETES_CMD, [
         [p.societe, p.activite, p.poste_da.nom if p.poste_da else None,
-         _entier_si_possible(p.commande.reference), p.numero, p.nom, p.montant, p.date_livraison,
+         _entier_si_possible(p.commande.reference),
+         p.commande.marche.reference if p.commande.marche else None, p.numero, p.nom, p.montant, p.date_livraison,
          p.poste_da.cle if p.poste_da else None, p.ptf, "OK" if p.csf else None, p.ref_livrable]
         for p in postes_cmd])
+    _ecrire_feuille(wb.create_sheet("Marchés"), ENTETES_MARCHE, [
+        [m.reference, m.titulaire, m.lot, m.date_echeance, m.montant_max, m.engage(), m.restant,
+         m.commentaire]
+        for m in Marche.query.order_by(Marche.reference)])
     flux = BytesIO()
     wb.save(flux)
     flux.seek(0)

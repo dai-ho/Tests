@@ -15,12 +15,14 @@
     <ul class="navbar-nav me-auto">
       <li class="nav-item"><a class="nav-link {% if page in ['liste_da','detail_da','form_da','form_poste_da'] %}active{% endif %}" href="{{ url_for('liste_da') }}">DA</a></li>
       <li class="nav-item"><a class="nav-link {% if page == 'postes_da' %}active{% endif %}" href="{{ url_for('postes_da') }}">Suivi DA</a></li>
-      <li class="nav-item"><a class="nav-link {% if page in ['liste_commandes','detail_commande','form_commande','form_poste_commande'] %}active{% endif %}" href="{{ url_for('liste_commandes') }}">BdC</a></li>
+      <li class="nav-item"><a class="nav-link {% if page in ['liste_commandes','detail_commande','form_commande','nouvelle_commande','mail_commande','form_poste_commande'] %}active{% endif %}" href="{{ url_for('liste_commandes') }}">BdC</a></li>
       <li class="nav-item"><a class="nav-link {% if page == 'postes_commande' %}active{% endif %}" href="{{ url_for('postes_commande') }}">Suivi BdC</a></li>
+      <li class="nav-item"><a class="nav-link {% if page in ['liste_marches','detail_marche','form_marche'] %}active{% endif %}" href="{{ url_for('liste_marches') }}">Marchés</a></li>
     </ul>
     <ul class="navbar-nav">
       <li class="nav-item"><a class="nav-link {% if page == 'import_excel' %}active{% endif %}" href="{{ url_for('import_excel') }}">Importer Excel</a></li>
       <li class="nav-item"><a class="nav-link" href="{{ url_for('export_excel') }}">Exporter Excel</a></li>
+      <li class="nav-item"><a class="nav-link {% if page == 'parametres' %}active{% endif %}" href="{{ url_for('parametres') }}" title="Paramètres de l'e-mail au service achat">⚙ Paramètres</a></li>
     </ul>
   </div>
 </nav>

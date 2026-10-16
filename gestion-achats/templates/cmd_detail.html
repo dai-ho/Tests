@@ -1,18 +1,21 @@
 {% extends "base.html" %}
 {% import "_macros.html" as macros %}
-{% block titre %}BdC {{ cmd.reference }}{% endblock %}
+{% block titre %}BdC {{ cmd.libelle }}{% endblock %}
 {% block contenu %}
 <div class="d-flex justify-content-between align-items-start mb-3">
   <div>
     <a href="{{ url_for('liste_commandes') }}" class="small">← Bons de commande</a>
-    <h3 class="mb-0">BdC {{ cmd.reference }}{% if cmd.societes %} <small class="text-muted">– {{ cmd.societes|join(', ') }}</small>{% endif %}</h3>
+    <h3 class="mb-0">BdC {{ cmd.libelle }}{% if cmd.societes %} <small class="text-muted">– {{ cmd.societes|join(', ') }}</small>{% endif %}</h3>
+    {% if cmd.marche %}<div>Marché <a href="{{ url_for('detail_marche', marche_id=cmd.marche_id) }}">{{ cmd.marche.reference }}</a>
+      {% if cmd.marche.restant is not none %}<span class="text-muted">– reste {{ cmd.marche.restant|euros }} sur le marché</span>{% endif %}</div>{% endif %}
     <div class="text-muted">{{ cmd.postes|length }} poste(s) – {{ cmd.montant_total|euros }} – {{ cmd.nb_certifies }} CSF OK</div>
     {% if cmd.commentaire %}<p class="mt-2 mb-0">{{ cmd.commentaire }}</p>{% endif %}
   </div>
   <div class="d-flex gap-2">
-    <a class="btn btn-primary" href="{{ url_for('form_poste_commande', cmd_id=cmd.id) }}">+ Ajouter un poste</a>
-    <a class="btn btn-outline-secondary" href="{{ url_for('form_commande', cmd_id=cmd.id) }}">Modifier</a>
-    <form method="post" action="{{ url_for('supprimer_commande', cmd_id=cmd.id) }}" data-confirmer="Supprimer le BdC {{ cmd.reference }} et tous ses postes ?">
+    <a class="btn {{ 'btn-primary' if not cmd.reference else 'btn-outline-primary' }}" href="{{ url_for('mail_commande', cmd_id=cmd.id) }}">✉ E-mail de demande</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('form_poste_commande', cmd_id=cmd.id) }}">+ Ajouter un poste</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('form_commande', cmd_id=cmd.id) }}">{{ 'Saisir le n° de BdC' if not cmd.reference else 'Modifier' }}</a>
+    <form method="post" action="{{ url_for('supprimer_commande', cmd_id=cmd.id) }}" data-confirmer="Supprimer le BdC {{ cmd.libelle }} et tous ses postes ?">
       <button class="btn btn-outline-danger">Supprimer</button></form>
   </div>
 </div>

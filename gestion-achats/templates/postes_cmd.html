@@ -16,7 +16,7 @@
     <tr style="{{ style_cmd(p) }}">
       <td>{{ p.societe or '' }}</td><td>{{ p.activite or '' }}</td>
       <td>{{ macros.lien_da(p.poste_da) if p.poste_da else '<span class="text-danger">non rattaché</span>'|safe }}</td>
-      <td><a href="{{ url_for('detail_commande', cmd_id=p.commande_id) }}">{{ p.commande.reference }}</a></td>
+      <td><a href="{{ url_for('detail_commande', cmd_id=p.commande_id) }}">{{ p.commande.libelle }}</a></td>
       <td>{{ p.numero }}</td><td>{{ p.nom }}</td>{{ macros.montant(p.montant) }}
       <td data-valeur="{{ p.date_livraison or '' }}">{{ p.date_livraison|date_fr }}</td>
       <td class="small">{{ p.ptf or '' }}</td>

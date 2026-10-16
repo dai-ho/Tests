@@ -33,7 +33,7 @@
       <td>{{ p.statut }}</td>
       <td class="small">
         {% for pc in p.postes_commande %}
-          <a href="{{ url_for('detail_commande', cmd_id=pc.commande_id) }}">{{ pc.commande.reference }}/{{ pc.numero }}</a>
+          <a href="{{ url_for('detail_commande', cmd_id=pc.commande_id) }}">{{ pc.commande.libelle }}/{{ pc.numero }}</a>
           {{ pc.montant|euros }} <span class="badge {{ 'bg-success' if pc.csf else 'bg-secondary' }}">{{ 'CSF OK' if pc.csf else 'CSF à faire' }}</span><br>
         {% endfor %}
       </td>

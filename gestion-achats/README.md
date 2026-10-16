@@ -24,6 +24,13 @@ Reprend la structure du fichier **Budgets GT** (onglets « Suivi DA » et « Sui
 - **Bons de commande** : n° BDC/Marché, postes avec société (fournisseur), activité, désignation, montant,
   échéance, PTF (PAF), CSF et CR pour CSF (ce dernier n'apparaît que lorsque la CSF est cochée). Chaque poste est rattaché à un
   poste de DA, choisi dans une liste qui affiche le disponible restant.
+- **Création d'un BdC en une étape** (pop-up) : poste de DA, marché, société, désignation, projet,
+  montant, échéance. Le n° de BdC est saisi plus tard, quand le service achat le communique.
+- **E-mail de demande de commande** : bouton « ✉ E-mail » sur chaque BdC, qui ouvre un message pré-rempli
+  dans la messagerie (objet, marché, lot, désignation, montant, échéance, rappel du poste de DA).
+  Destinataire, prénom, formule de fin et signature se règlent dans **Paramètres**.
+- **Marchés** : référence, titulaire, lot, échéance, montant maximal. Le total des BdC passés sur un marché
+  ne peut pas dépasser son montant maximal (contrôle à la saisie, jauge de consommation).
 - **Suivi DA / Suivi BdC** : vues tableur avec filtre instantané et tri par colonne.
 - **Tableau de bord** : synthèse Valeur / Imputé / Disponible par projet et année, échéances dépassées sans
   CSF, postes de DA sans BdC, dépassements.
@@ -43,6 +50,7 @@ dans `donnees/sauvegardes/`.
 | `app.py` | Application Flask : pages et formulaires |
 | `models.py` | Modèle de données (DA, postes DA, BdC, postes BdC) |
 | `regles.py` | Règles de couleur des lignes |
+| `mail.py` | E-mail de demande de commande au service achat |
 | `excel_io.py` | Import / export Excel, en-têtes de colonnes reconnus |
 | `templates/` | Pages HTML (Jinja2 + Bootstrap) |
 | `static/` | CSS / JS (Bootstrap embarqué : fonctionne sans Internet) |

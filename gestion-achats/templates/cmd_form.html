@@ -1,15 +1,25 @@
 {% extends "base.html" %}
-{% block titre %}{{ 'BdC ' ~ cmd.reference if cmd.id else 'Nouveau BdC' }}{% endblock %}
+{% block titre %}BdC {{ cmd.libelle }}{% endblock %}
 {% block contenu %}
-<h3>{{ 'Modifier le BdC ' ~ cmd.reference if cmd.id else 'Nouveau bon de commande / marché' }}</h3>
+<a href="{{ url_for('detail_commande', cmd_id=cmd.id) }}" class="small">← BdC {{ cmd.libelle }}</a>
+<h3>Modifier le BdC {{ cmd.libelle }}</h3>
 <form method="post" class="card card-body" style="max-width: 40rem">
-  <div class="mb-3"><label class="form-label">N° BDC / Marché *</label>
-    <input name="reference" class="form-control" required autofocus value="{{ cmd.reference or '' }}"></div>
+  <div class="mb-3"><label class="form-label">N° de BdC</label>
+    <input name="reference" class="form-control" autofocus value="{{ cmd.reference or '' }}" placeholder="communiqué par le service achat"></div>
+  <div class="mb-3"><label class="form-label">Marché</label>
+    <select name="marche_id" class="form-select">
+      <option value="">— hors marché —</option>
+      {% for m in marches %}
+        <option value="{{ m.id }}" {{ 'selected' if cmd.marche_id == m.id }}>
+          {{ m.reference }}{% if m.titulaire %} — {{ m.titulaire }}{% endif %}{% if m.restant is not none %} — reste {{ m.restant|euros }}{% endif %}
+        </option>
+      {% endfor %}
+    </select></div>
   <div class="mb-3"><label class="form-label">Commentaire</label>
     <textarea name="commentaire" class="form-control" rows="3">{{ cmd.commentaire or '' }}</textarea></div>
   <div class="d-flex gap-2">
-    <button class="btn btn-primary">{{ 'Enregistrer' if cmd.id else 'Créer et saisir le premier poste' }}</button>
-    <a class="btn btn-outline-secondary" href="{{ url_for('detail_commande', cmd_id=cmd.id) if cmd.id else url_for('liste_commandes') }}">Annuler</a>
+    <button class="btn btn-primary">Enregistrer</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('detail_commande', cmd_id=cmd.id) }}">Annuler</a>
   </div>
 </form>
 {% endblock %}

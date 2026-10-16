@@ -11,3 +11,6 @@ td.actions { white-space: nowrap; text-align: right; }
 td.actions form { display: inline; }
 .carte-stat .valeur { font-size: 1.8rem; font-weight: 600; }
 .legende span { display: inline-block; padding: .1rem .6rem; border-radius: .25rem; margin-right: .3rem; font-size: .8rem; }
+dialog.dialogue { border: none; border-radius: .5rem; padding: 1.5rem; width: min(60rem, 95vw); box-shadow: 0 .5rem 2rem rgba(0,0,0,.3); }
+dialog.dialogue::backdrop { background: rgba(0,0,0,.4); }
+.apercu-mail { white-space: pre-wrap; font-family: inherit; background: #fff; border: 1px solid #dee2e6; border-radius: .375rem; padding: 1rem; margin: 0; }

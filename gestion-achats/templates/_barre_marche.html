@@ -1,0 +1,8 @@
+{# Jauge de consommation d'un marché : variable `m` #}
+{% if m.montant_max %}
+  {% set taux = m.taux %}
+  <div class="progress" style="height: .9rem; min-width: 8rem" title="{{ m.engage()|euros }} sur {{ m.montant_max|euros }}">
+    <div class="progress-bar {{ 'bg-danger' if taux > 100 else ('bg-warning' if taux >= 90 else 'bg-success') }}"
+         style="width: {{ [taux, 100]|min }}%">{{ taux|round|int }} %</div>
+  </div>
+{% endif %}

@@ -23,6 +23,42 @@
   {% endif %}
 </table></div>
 
+{% if en_attente or marches_alerte %}
+<div class="row g-4 mb-4">
+  {% if en_attente %}
+  <div class="col-xl-6">
+    <h5>BdC en attente de numéro <span class="badge bg-info text-dark">{{ en_attente|length }}</span></h5>
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+      <thead><tr><th>Désignation</th><th>Marché</th><th class="num">Montant</th><th></th></tr></thead>
+      <tbody>
+      {% for c in en_attente %}
+        <tr>
+          <td><a href="{{ url_for('detail_commande', cmd_id=c.id) }}">{{ c.postes|map(attribute='nom')|join(', ') or 'BdC sans poste' }}</a></td>
+          <td>{{ c.marche.reference if c.marche }}</td>{{ macros.montant(c.montant_total) }}
+          <td class="actions"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('form_commande', cmd_id=c.id) }}">Saisir le n°</a></td>
+        </tr>
+      {% endfor %}
+      </tbody></table></div>
+  </div>
+  {% endif %}
+  {% if marches_alerte %}
+  <div class="col-xl-6">
+    <h5>Marchés consommés à 90 % ou plus <span class="badge bg-warning text-dark">{{ marches_alerte|length }}</span></h5>
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+      <thead><tr><th>Marché</th><th>Titulaire</th><th class="num">Reste</th><th>Consommation</th></tr></thead>
+      <tbody>
+      {% for m in marches_alerte %}
+        <tr>
+          <td><a href="{{ url_for('detail_marche', marche_id=m.id) }}">{{ m.reference }}</a></td>
+          <td>{{ m.titulaire or '' }}</td>{{ macros.montant(m.restant, true) }}<td>{% include "_barre_marche.html" %}</td>
+        </tr>
+      {% endfor %}
+      </tbody></table></div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="row g-4">
   <div class="col-xl-6">
     <h5>Échéances dépassées sans CSF <span class="badge bg-warning text-dark">{{ en_retard|length }}</span></h5>
@@ -31,7 +67,7 @@
       <tbody>
       {% for p in en_retard %}
         <tr style="{{ style_cmd(p) }}">
-          <td><a href="{{ url_for('detail_commande', cmd_id=p.commande_id) }}">{{ p.commande.reference }}</a></td>
+          <td><a href="{{ url_for('detail_commande', cmd_id=p.commande_id) }}">{{ p.commande.libelle }}</a></td>
           <td>{{ p.numero }}</td><td>{{ p.nom }}</td>{{ macros.montant(p.montant) }}
           <td>{{ p.date_livraison|date_fr }}</td><td>{{ macros.badge_csf(p) }}</td>
         </tr>

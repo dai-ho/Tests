@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros %}
+{% block titre %}Marché {{ marche.reference }}{% endblock %}
+{% block contenu %}
+{% set m = marche %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <a href="{{ url_for('liste_marches') }}" class="small">← Marchés</a>
+    <h3 class="mb-0">Marché {{ m.reference }}{% if m.titulaire %} <small class="text-muted">– {{ m.titulaire }}</small>{% endif %}</h3>
+    <div class="text-muted">
+      {% if m.lot %}Lot {{ m.lot }} – {% endif %}échéance {{ m.date_echeance|date_fr or 'non renseignée' }}{% if m.expire %} <span class="badge bg-secondary">échu</span>{% endif %}
+      – maximum {{ m.montant_max|euros or 'non renseigné' }} – commandé {{ m.engage()|euros }}
+      {% if m.restant is not none %}– reste <span class="{{ 'text-danger fw-bold' if m.restant < 0 }}">{{ m.restant|euros }}</span>{% endif %}
+    </div>
+    <div class="mt-2" style="max-width: 25rem">{% include "_barre_marche.html" %}</div>
+    {% if m.commentaire %}<p class="mt-2 mb-0">{{ m.commentaire }}</p>{% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('form_marche', marche_id=m.id) }}">Modifier</a>
+    <form method="post" action="{{ url_for('supprimer_marche', marche_id=m.id) }}" data-confirmer="Supprimer le marché {{ m.reference }} ?">
+      <button class="btn btn-outline-danger">Supprimer</button></form>
+  </div>
+</div>
+<h5>Postes de BdC passés sur ce marché</h5>
+<div class="table-responsive"><table class="table table-hover align-middle">
+  <thead><tr><th>BdC</th><th>Poste</th><th>Désignation</th><th>Société</th><th>Imputation (poste de DA)</th>
+    <th class="num">Montant</th><th>Échéance</th><th>CSF</th></tr></thead>
+  <tbody>
+  {% for c in m.commandes %}{% for p in c.postes %}
+    <tr style="{{ style_cmd(p) }}">
+      <td><a href="{{ url_for('detail_commande', cmd_id=c.id) }}">{{ c.libelle }}</a></td>
+      <td>{{ p.numero }}</td><td>{{ p.nom }}</td><td>{{ p.societe or '' }}</td><td>{{ macros.lien_da(p.poste_da) }}</td>
+      {{ macros.montant(p.montant) }}<td>{{ p.date_livraison|date_fr }}</td><td>{{ macros.badge_csf(p) }}</td>
+    </tr>
+  {% endfor %}{% else %}<tr><td colspan="8" class="text-muted">Aucune commande sur ce marché.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}

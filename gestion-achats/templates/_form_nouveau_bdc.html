@@ -1,0 +1,99 @@
+{# Formulaire de création d'un BdC : utilisé dans la pop-up de la liste des BdC et sur la page
+   /commandes/nouvelle (réaffichage en cas d'erreur). `saisie` contient les valeurs déjà saisies. #}
+<form method="post" action="{{ url_for('nouvelle_commande') }}" id="form-nouveau-bdc">
+  <div class="row g-3">
+    <div class="col-12"><label class="form-label">Imputation : poste de DA *</label>
+      <input class="form-control mb-1" type="search" placeholder="Filtrer la liste (désignation, n° DA, projet…)" id="nb-recherche">
+      <select name="poste_da_id" class="form-select" id="nb-poste-da" required>
+        <option value="">— choisir —</option>
+        {% for pd in postes_da %}
+          <option value="{{ pd.id }}" data-nom="{{ pd.nom }}" data-projet="{{ pd.projet or '' }}"
+                  data-disponible="{{ pd.disponible }}" {{ 'selected' if saisie.get('poste_da_id') == pd.id|string }}>
+            {{ pd.nom }} — {{ pd.cle }}{% if pd.projet %} — {{ pd.projet }}{% endif %} — disponible {{ pd.disponible|euros }}
+          </option>
+        {% endfor %}
+      </select></div>
+    <div class="col-md-6"><label class="form-label">Marché</label>
+      <select name="marche_id" class="form-select" id="nb-marche">
+        <option value="">— hors marché —</option>
+        {% for m in marches %}
+          <option value="{{ m.id }}" data-titulaire="{{ m.titulaire or '' }}" data-restant="{{ m.restant if m.restant is not none else '' }}"
+                  {{ 'selected' if saisie.get('marche_id') == m.id|string }}>
+            {{ m.reference }}{% if m.titulaire %} — {{ m.titulaire }}{% endif %}{% if m.restant is not none %} — reste {{ m.restant|euros }}{% endif %}
+          </option>
+        {% endfor %}
+      </select>
+      <div class="form-text">Les marchés échus ne sont pas proposés.</div></div>
+    <div class="col-md-6"><label class="form-label">Société (fournisseur)</label>
+      <input name="societe" id="nb-societe" class="form-control" list="nb-societes" value="{{ saisie.get('societe', '') }}">
+      <datalist id="nb-societes">{% for v in societes %}<option value="{{ v }}">{% endfor %}</datalist></div>
+    <div class="col-md-8"><label class="form-label">Désignation *</label>
+      <input name="nom" id="nb-nom" class="form-control" required value="{{ saisie.get('nom', '') }}"></div>
+    <div class="col-md-4"><label class="form-label">Projet / activité</label>
+      <input name="activite" id="nb-activite" class="form-control" list="nb-activites" value="{{ saisie.get('activite', '') }}">
+      <datalist id="nb-activites">{% for v in activites %}<option value="{{ v }}">{% endfor %}</datalist></div>
+    <div class="col-md-4"><label class="form-label">Montant (€) *</label>
+      <input name="montant" id="nb-montant" class="form-control" inputmode="decimal" required value="{{ saisie.get('montant', '') }}"></div>
+    <div class="col-md-4"><label class="form-label">Échéance</label>
+      <input name="date_livraison" type="date" class="form-control" value="{{ saisie.get('date_livraison', '') }}"></div>
+    <div class="col-md-4"><label class="form-label">N° de BdC</label>
+      <input name="reference" class="form-control" placeholder="fourni plus tard par le service achat" value="{{ saisie.get('reference', '') }}"></div>
+    <div class="col-12 small" id="nb-infos"></div>
+  </div>
+  <div class="d-flex gap-2 mt-4">
+    <button class="btn btn-primary">Créer le BdC et préparer l'e-mail</button>
+    {% if dans_dialogue %}
+      <button type="button" class="btn btn-outline-secondary" onclick="this.closest('dialog').close()">Annuler</button>
+    {% else %}
+      <a class="btn btn-outline-secondary" href="{{ url_for('liste_commandes') }}">Annuler</a>
+    {% endif %}
+  </div>
+</form>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const select = $("nb-poste-da"), marche = $("nb-marche"), recherche = $("nb-recherche");
+  const euros = (v) => v.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+  const montant = () => parseFloat($("nb-montant").value.replace(/\s/g, "").replace(",", ".")) || 0;
+
+  recherche.addEventListener("input", () => {
+    const mots = recherche.value.toLowerCase().split(/\s+/).filter(Boolean);
+    for (const opt of select.options) {
+      opt.hidden = opt.value !== "" && !mots.every((m) => opt.text.toLowerCase().includes(m));
+    }
+    const visibles = Array.from(select.options).filter((o) => o.value && !o.hidden);
+    if (visibles.length === 1) { select.value = visibles[0].value; select.dispatchEvent(new Event("change")); }
+  });
+
+  // Disponible sur le poste de DA et reste sur le marché, recalculés à la saisie
+  const infos = () => {
+    const lignes = [];
+    const pd = select.selectedOptions[0], m = marche.selectedOptions[0];
+    if (pd && pd.value) {
+      const reste = parseFloat(pd.dataset.disponible) - montant();
+      lignes.push(`<span class="${reste < 0 ? "text-danger fw-bold" : "text-muted"}">Poste de DA : disponible après ce BdC ${euros(reste)}</span>`);
+    }
+    if (m && m.value && m.dataset.restant !== "") {
+      const reste = parseFloat(m.dataset.restant) - montant();
+      lignes.push(`<span class="${reste < 0 ? "text-danger fw-bold" : "text-muted"}">Marché : reste après ce BdC ${euros(reste)}${reste < 0 ? " — montant maximal dépassé" : ""}</span>`);
+    }
+    $("nb-infos").innerHTML = lignes.join("<br>");
+  };
+
+  select.addEventListener("change", () => {
+    const opt = select.selectedOptions[0];
+    if (opt && opt.value) {
+      if (!$("nb-nom").value) $("nb-nom").value = opt.dataset.nom;
+      if (!$("nb-activite").value) $("nb-activite").value = opt.dataset.projet;
+    }
+    infos();
+  });
+  marche.addEventListener("change", () => {
+    const opt = marche.selectedOptions[0];
+    if (opt && opt.value && opt.dataset.titulaire) $("nb-societe").value = opt.dataset.titulaire;
+    infos();
+  });
+  $("nb-montant").addEventListener("input", infos);
+  infos();
+})();
+</script>

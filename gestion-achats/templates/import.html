@@ -26,10 +26,12 @@ Un <a href="{{ url_for('export_excel') }}">export</a> produit un fichier au mêm
   <li>Un poste de BdC est rattaché à son poste de DA par la colonne <strong>Imputation</strong> (désignation du poste
     de DA, comme la RECHERCHEV du fichier), ou à défaut par <strong>DA@poste</strong>.</li>
   <li>CSF : « OK » (ou Oui, X, Fait, 1) = faite. Le CR pour CSF n'est repris que si la CSF est faite.</li>
+  <li>Onglet facultatif <strong>« Marchés »</strong> (créé par l'export). Un n° de marché inconnu cité dans le Suivi BdC crée un marché à compléter.</li>
+  <li>Un poste de BdC sans n° de BdC est importé comme BdC « N° en attente ».</li>
   <li>Mode mise à jour : les lignes sont rapprochées par n° DA + poste et par n° BdC + poste ; les autres données sont conservées.</li>
 </ul>
 <div class="row">
-  {% for titre, colonnes in [("Onglet Suivi DA", colonnes_da), ("Onglet Suivi BdC", colonnes_cmd)] %}
+  {% for titre, colonnes in [("Onglet Suivi DA", colonnes_da), ("Onglet Suivi BdC", colonnes_cmd), ("Onglet Marchés", colonnes_marche)] %}
   <div class="col-lg-6"><h6>{{ titre }}</h6>
     <table class="table table-sm bg-white"><thead><tr><th>Colonne</th><th>En-têtes acceptés</th></tr></thead><tbody>
       {% for cle, noms in colonnes.items() %}<tr><td>{{ noms[0] }}</td><td class="small">{{ noms|join(' · ') }}</td></tr>{% endfor %}

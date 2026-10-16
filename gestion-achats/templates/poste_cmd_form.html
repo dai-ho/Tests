@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block titre %}Poste de BdC{% endblock %}
 {% block contenu %}
-<a href="{{ url_for('detail_commande', cmd_id=cmd.id) }}" class="small">← BdC {{ cmd.reference }}</a>
-<h3>{{ 'Modifier le poste ' ~ poste.numero if poste.id else 'Nouveau poste' }} – BdC {{ cmd.reference }}</h3>
+<a href="{{ url_for('detail_commande', cmd_id=cmd.id) }}" class="small">← BdC {{ cmd.libelle }}</a>
+<h3>{{ 'Modifier le poste ' ~ poste.numero if poste.id else 'Nouveau poste' }} – BdC {{ cmd.libelle }}</h3>
 <form method="post" class="card card-body" style="max-width: 60rem">
   <div class="row g-3">
     <div class="col-md-2"><label class="form-label">Poste du BdC *</label>

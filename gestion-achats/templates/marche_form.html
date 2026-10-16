@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block titre %}{{ 'Marché ' ~ marche.reference if marche.id else 'Nouveau marché' }}{% endblock %}
+{% block contenu %}
+<a href="{{ url_for('detail_marche', marche_id=marche.id) if marche.id else url_for('liste_marches') }}" class="small">← {{ 'Marché ' ~ marche.reference if marche.id else 'Marchés' }}</a>
+<h3>{{ 'Modifier le marché ' ~ marche.reference if marche.id else 'Nouveau marché' }}</h3>
+<form method="post" class="card card-body" style="max-width: 45rem">
+  <div class="row g-3">
+    <div class="col-md-6"><label class="form-label">Référence *</label>
+      <input name="reference" class="form-control" required autofocus placeholder="ex. 6513151/00" value="{{ marche.reference or '' }}"></div>
+    <div class="col-md-6"><label class="form-label">Titulaire (fournisseur)</label>
+      <input name="titulaire" class="form-control" list="liste-titulaires" value="{{ marche.titulaire or '' }}">
+      <datalist id="liste-titulaires">{% for v in titulaires %}<option value="{{ v }}">{% endfor %}</datalist></div>
+    <div class="col-md-4"><label class="form-label">Montant maximal (€) *</label>
+      <input name="montant_max" class="form-control" inputmode="decimal" required value="{{ marche.montant_max|saisie }}"></div>
+    <div class="col-md-4"><label class="form-label">Date d'échéance *</label>
+      <input name="date_echeance" type="date" class="form-control" required value="{{ marche.date_echeance or '' }}"></div>
+    <div class="col-md-4"><label class="form-label">Lot</label>
+      <input name="lot" class="form-control" placeholder="ex. à BPU" value="{{ marche.lot or '' }}">
+      <div class="form-text">Repris dans l'e-mail : « sur le lot … ».</div></div>
+    <div class="col-12"><label class="form-label">Commentaire</label>
+      <textarea name="commentaire" class="form-control" rows="2">{{ marche.commentaire or '' }}</textarea></div>
+  </div>
+  <div class="d-flex gap-2 mt-4">
+    <button class="btn btn-primary">Enregistrer</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('detail_marche', marche_id=marche.id) if marche.id else url_for('liste_marches') }}">Annuler</a>
+  </div>
+</form>
+{% endblock %}

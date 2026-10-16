@@ -12,8 +12,9 @@ from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
 import excel_io
+import mail
 import regles
-from models import STATUTS_DA, Commande, DemandeAchat, PosteCommande, PosteDA, db
+from models import STATUTS_DA, Commande, DemandeAchat, Marche, PosteCommande, PosteDA, db
 
 DOSSIER = os.path.dirname(os.path.abspath(__file__))
 DOSSIER_DONNEES = os.path.join(DOSSIER, "donnees")
@@ -42,6 +43,18 @@ def migrer():
             if avait_societe:
                 cnx.execute(text("UPDATE poste_commande SET societe = "
                                  "(SELECT societe FROM commande WHERE commande.id = commande_id)"))
+
+    colonnes = {c["name"]: c for c in inspect(db.engine).get_columns("commande")}
+    if "marche_id" not in colonnes or not colonnes["reference"]["nullable"]:
+        # N° de BdC devenu facultatif + rattachement à un marché : SQLite ne sachant pas
+        # modifier une colonne, la table est recréée puis les données recopiées.
+        communes = ", ".join(c for c in ("id", "reference", "commentaire") if c in colonnes)
+        with db.engine.begin() as cnx:
+            cnx.execute(text("ALTER TABLE commande RENAME TO commande_ancienne"))
+            Commande.__table__.create(cnx)
+            cnx.execute(text(f"INSERT INTO commande ({communes}) "
+                             f"SELECT {communes} FROM commande_ancienne"))
+            cnx.execute(text("DROP TABLE commande_ancienne"))
 
 
 def create_app(db_uri=None):
@@ -80,6 +93,7 @@ def create_app(db_uri=None):
                 "style_cmd": regles.style_poste_commande,
                 "couleurs_da": regles.COULEURS_DA,
                 "couleurs_cmd": regles.COULEURS_CMD,
+                "mailto": mail.lien_mailto,
                 "aujourdhui": date.today()}
 
     enregistrer_routes(app)
@@ -125,6 +139,34 @@ def tous_les_postes_da():
                       PosteDA.numero).all())
 
 
+def postes_da_ouverts(sauf_id=None):
+    """Postes de DA proposés à l'imputation : ni clos ni supprimés (plus le poste déjà associé)."""
+    return [p for p in tous_les_postes_da()
+            if p.statut not in ("clos", "supprimé") or p.id == sauf_id]
+
+
+def marches_ouverts(sauf_id=None):
+    """Marchés proposés : non échus (plus le marché déjà associé)."""
+    return [m for m in Marche.query.order_by(Marche.reference)
+            if not m.expire or m.id == sauf_id]
+
+
+def eur(v):
+    return f"{v or 0:,.2f} €".replace(",", " ").replace(".", ",")
+
+
+def controle_marche(marche, montant, sauf_poste=None, sauf_commande=None):
+    """Message d'erreur si `montant` ajouté au marché dépasse son montant maximal."""
+    if marche is None or marche.montant_max is None:
+        return None
+    total = marche.engage(sauf_poste=sauf_poste, sauf_commande=sauf_commande) + (montant or 0)
+    if total > marche.montant_max + 0.005:
+        return (f"Montant maximal du marché {marche.reference} dépassé : {eur(total)} engagés "
+                f"pour {eur(marche.montant_max)} autorisés "
+                f"(reste disponible : {eur(marche.montant_max - total + (montant or 0))}).")
+    return None
+
+
 def valeurs_distinctes(colonne):
     """Valeurs déjà saisies, proposées en suggestion dans les formulaires."""
     return [v for (v,) in db.session.query(colonne).distinct().order_by(colonne) if v]
@@ -160,6 +202,9 @@ def enregistrer_routes(app):
                              key=lambda p: p.date_livraison),
             non_imputes=[p for p in actifs if p.impute == 0],
             depassements=[p for p in postes_da if p.statut != "supprimé" and p.disponible < 0],
+            en_attente=Commande.query.filter(Commande.reference.is_(None)).all(),
+            marches_alerte=[m for m in Marche.query.order_by(Marche.reference)
+                            if not m.expire and m.taux is not None and m.taux >= 90],
         )
 
     # --- Demandes d'achat -----------------------------------------------------
@@ -268,25 +313,80 @@ def enregistrer_routes(app):
 
     # --- Bons de commande -----------------------------------------------------
 
+    def contexte_nouveau_bdc():
+        return {"postes_da": postes_da_ouverts(), "marches": marches_ouverts(),
+                "activites": valeurs_distinctes(PosteCommande.activite),
+                "societes": valeurs_distinctes(PosteCommande.societe)}
+
     @app.route("/commandes")
     def liste_commandes():
-        cmds = Commande.query.order_by(Commande.reference).all()
-        return render_template("cmd_liste.html", cmds=cmds)
+        # BdC en attente de numéro en tête
+        cmds = Commande.query.order_by(Commande.reference.isnot(None), Commande.reference).all()
+        return render_template("cmd_liste.html", cmds=cmds, saisie={},
+                               **contexte_nouveau_bdc())
 
     @app.route("/commandes/nouvelle", methods=["GET", "POST"])
+    def nouvelle_commande():
+        """Création d'un BdC et de son premier poste, avant que le n° soit connu."""
+        if request.method == "GET":
+            return render_template("cmd_nouvelle.html", saisie={}, **contexte_nouveau_bdc())
+        try:
+            montant = champ_montant("montant")
+            echeance = champ_date("date_livraison")
+            poste_da_id = champ_entier("poste_da_id")
+            marche_id = champ_entier("marche_id")
+        except ValueError:
+            montant = None
+            erreur = "Valeur numérique ou date invalide."
+        else:
+            marche = db.session.get(Marche, marche_id) if marche_id else None
+            erreur = controle_marche(marche, montant)
+            if not champ("nom"):
+                erreur = "La désignation est obligatoire."
+        reference = champ("reference")
+        if not erreur and reference and Commande.query.filter_by(reference=reference).first():
+            erreur = f"Le BdC {reference} existe déjà."
+        if erreur:
+            flash(erreur, "danger")
+            return render_template("cmd_nouvelle.html", saisie=request.form,
+                                   **contexte_nouveau_bdc())
+        cmd = Commande(reference=reference, marche=marche, commentaire=champ("commentaire"))
+        cmd.postes.append(PosteCommande(
+            numero=10, nom=champ("nom"), societe=champ("societe"), activite=champ("activite"),
+            montant=montant, date_livraison=echeance, csf=False,
+            poste_da=db.session.get(PosteDA, poste_da_id) if poste_da_id else None))
+        db.session.add(cmd)
+        db.session.commit()
+        flash("BdC créé. Envoyez la demande au service achat ; vous saisirez le n° de BdC "
+              "quand il vous sera communiqué.", "success")
+        return redirect(url_for("mail_commande", cmd_id=cmd.id))
+
     @app.route("/commandes/<int:cmd_id>/modifier", methods=["GET", "POST"])
-    def form_commande(cmd_id=None):
-        cmd = db.get_or_404(Commande, cmd_id) if cmd_id else Commande()
+    def form_commande(cmd_id):
+        cmd = db.get_or_404(Commande, cmd_id)
+        marches = marches_ouverts(sauf_id=cmd.marche_id)
         if request.method == "POST":
-            cmd.reference = champ("reference")
-            cmd.commentaire = champ("commentaire")
-            if cmd_id is None:
-                db.session.add(cmd)
-            if enregistrer("BdC enregistré.", f"Le BdC {cmd.reference} existe déjà."):
-                if cmd_id is None:
-                    return redirect(url_for("form_poste_commande", cmd_id=cmd.id))
-                return redirect(url_for("detail_commande", cmd_id=cmd.id))
-        return render_template("cmd_form.html", cmd=cmd)
+            marche_id = champ_entier("marche_id")
+            marche = db.session.get(Marche, marche_id) if marche_id else None
+            erreur = (controle_marche(marche, cmd.montant_total, sauf_commande=cmd)
+                      if marche is not cmd.marche else None)
+            if erreur:
+                flash(erreur, "danger")
+            else:
+                cmd.reference = champ("reference")
+                cmd.marche = marche
+                cmd.commentaire = champ("commentaire")
+                if enregistrer("BdC enregistré.", f"Le BdC {champ('reference')} existe déjà."):
+                    return redirect(url_for("detail_commande", cmd_id=cmd.id))
+                cmd = db.session.get(Commande, cmd_id)
+        return render_template("cmd_form.html", cmd=cmd, marches=marches)
+
+    @app.route("/commandes/<int:cmd_id>/mail")
+    def mail_commande(cmd_id):
+        cmd = db.get_or_404(Commande, cmd_id)
+        destinataire, objet, corps = mail.generer(cmd)
+        return render_template("cmd_mail.html", cmd=cmd, destinataire=destinataire,
+                               objet=objet, corps=corps)
 
     @app.route("/commandes/<int:cmd_id>")
     def detail_commande(cmd_id):
@@ -297,7 +397,7 @@ def enregistrer_routes(app):
         cmd = db.get_or_404(Commande, cmd_id)
         db.session.delete(cmd)
         db.session.commit()
-        flash(f"BdC {cmd.reference} supprimé.", "success")
+        flash(f"BdC {cmd.libelle} supprimé.", "success")
         return redirect(url_for("liste_commandes"))
 
     @app.route("/commandes/<int:cmd_id>/poste/nouveau", methods=["GET", "POST"])
@@ -312,11 +412,10 @@ def enregistrer_routes(app):
             precedent = cmd.postes[-1] if cmd.postes else None
             # Reprise du fournisseur et de l'activité du poste précédent
             poste = PosteCommande(numero=dernier + 10, csf=False,
-                                  societe=precedent.societe if precedent else None,
+                                  societe=(precedent.societe if precedent else None)
+                                  or (cmd.marche.titulaire if cmd.marche else None),
                                   activite=precedent.activite if precedent else None)
-        # Postes de DA proposés : ceux ni clos ni supprimés, plus le poste déjà associé
-        postes_da_dispo = [p for p in tous_les_postes_da()
-                           if p.statut not in ("clos", "supprimé") or p.id == poste.poste_da_id]
+        postes_da_dispo = postes_da_ouverts(sauf_id=poste.poste_da_id)
         suggestions = {"activites": valeurs_distinctes(PosteCommande.activite),
                        "societes": valeurs_distinctes(PosteCommande.societe)}
 
@@ -333,6 +432,10 @@ def enregistrer_routes(app):
                 poste_da_id = champ_entier("poste_da_id")
             except ValueError:
                 flash("Valeur numérique ou date invalide.", "danger")
+                return afficher("csf" in request.form)
+            erreur = controle_marche(cmd.marche, poste.montant, sauf_poste=poste)
+            if erreur:
+                flash(erreur, "danger")
                 return afficher("csf" in request.form)
             if poste_da_id and db.session.get(PosteDA, poste_da_id) is None:
                 poste_da_id = None
@@ -374,8 +477,72 @@ def enregistrer_routes(app):
     @app.route("/postes-commande")
     def postes_commande():
         postes = (PosteCommande.query.join(Commande)
-                  .order_by(Commande.reference, PosteCommande.numero).all())
+                  .order_by(Commande.reference.isnot(None), Commande.reference,
+                            PosteCommande.numero).all())
         return render_template("postes_cmd.html", postes=postes)
+
+    # --- Marchés ---------------------------------------------------------------
+
+    @app.route("/marches")
+    def liste_marches():
+        marches = Marche.query.order_by(Marche.date_echeance.is_(None), Marche.date_echeance,
+                                        Marche.reference).all()
+        return render_template("marche_liste.html", marches=marches)
+
+    @app.route("/marches/nouveau", methods=["GET", "POST"])
+    @app.route("/marches/<int:marche_id>/modifier", methods=["GET", "POST"])
+    def form_marche(marche_id=None):
+        marche = db.get_or_404(Marche, marche_id) if marche_id else Marche()
+        titulaires = sorted(set(valeurs_distinctes(Marche.titulaire))
+                            | set(valeurs_distinctes(PosteCommande.societe)))
+        if request.method == "POST":
+            try:
+                montant_max = champ_montant("montant_max")
+                date_echeance = champ_date("date_echeance")
+            except ValueError:
+                flash("Valeur numérique ou date invalide.", "danger")
+                return render_template("marche_form.html", marche=marche, titulaires=titulaires)
+            if marche_id and montant_max is not None and marche.engage() > montant_max + 0.005:
+                flash(f"Impossible : {eur(marche.engage())} sont déjà commandés sur ce marché.",
+                      "danger")
+                return render_template("marche_form.html", marche=marche, titulaires=titulaires)
+            marche.reference = champ("reference")
+            marche.titulaire = champ("titulaire")
+            marche.lot = champ("lot")
+            marche.montant_max = montant_max
+            marche.date_echeance = date_echeance
+            marche.commentaire = champ("commentaire")
+            if marche_id is None:
+                db.session.add(marche)
+            if enregistrer("Marché enregistré.", f"Le marché {marche.reference} existe déjà."):
+                return redirect(url_for("detail_marche", marche_id=marche.id))
+            if marche_id:
+                marche = db.session.get(Marche, marche_id)
+        return render_template("marche_form.html", marche=marche, titulaires=titulaires)
+
+    @app.route("/marches/<int:marche_id>")
+    def detail_marche(marche_id):
+        return render_template("marche_detail.html", marche=db.get_or_404(Marche, marche_id))
+
+    @app.post("/marches/<int:marche_id>/supprimer")
+    def supprimer_marche(marche_id):
+        marche = db.get_or_404(Marche, marche_id)
+        if marche.commandes:
+            flash("Impossible : des BdC sont passés sur ce marché.", "danger")
+            return redirect(url_for("detail_marche", marche_id=marche_id))
+        db.session.delete(marche)
+        db.session.commit()
+        flash(f"Marché {marche.reference} supprimé.", "success")
+        return redirect(url_for("liste_marches"))
+
+    @app.route("/parametres", methods=["GET", "POST"])
+    def parametres():
+        if request.method == "POST":
+            mail.enregistrer_parametres(request.form)
+            flash("Paramètres enregistrés.", "success")
+            return redirect(url_for("parametres"))
+        return render_template("parametres.html", definitions=mail.PARAMETRES,
+                               valeurs=mail.parametres())
 
     # --- Excel ----------------------------------------------------------------
 
@@ -397,7 +564,8 @@ def enregistrer_routes(app):
                   "success" if not erreurs else "warning")
         return render_template("import.html", erreurs=erreurs,
                                colonnes_da=excel_io.COLONNES_DA,
-                               colonnes_cmd=excel_io.COLONNES_CMD)
+                               colonnes_cmd=excel_io.COLONNES_CMD,
+                               colonnes_marche=excel_io.COLONNES_MARCHE)
 
     @app.route("/export")
     def export_excel():

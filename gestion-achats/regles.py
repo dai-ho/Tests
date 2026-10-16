@@ -20,6 +20,7 @@ COULEURS_DA = {
 COULEURS_CMD = {
     "csf_ok": ("#BFBFBF", "CSF OK"),
     "echeance_depassee": ("#FFFF00", "Échéance dépassée, CSF non faite"),
+    "en_attente": ("#DBEEF4", "N° de BdC en attente"),
 }
 
 
@@ -42,6 +43,8 @@ def regle_poste_commande(poste):
         return "csf_ok"
     if poste.date_livraison and poste.date_livraison < date.today():
         return "echeance_depassee"
+    if not poste.commande.reference:
+        return "en_attente"
     return None
 
 

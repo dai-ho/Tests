@@ -1,4 +1,5 @@
-"""Modèle de données : Demandes d'Achat (DA), Bons de Commande (BdC) et leurs postes."""
+"""Modèle de données : Demandes d'Achat (DA), Bons de Commande (BdC) et leurs postes,
+marchés, paramètres."""
 from datetime import date
 
 from flask_sqlalchemy import SQLAlchemy
@@ -6,6 +7,50 @@ from flask_sqlalchemy import SQLAlchemy
 db = SQLAlchemy()
 
 STATUTS_DA = ["", "clos", "supprimé"]
+
+
+def k_euros(montant):
+    """Montant en k€ comme dans le fichier Excel : 55000 -> « 55k€ », 24555 -> « 24,555k€ »."""
+    return f"{(montant or 0) / 1000:.3f}".rstrip("0").rstrip(".").replace(".", ",") + "k€"
+
+
+class Parametre(db.Model):
+    """Réglages modifiables depuis l'application (ex. : destinataire de l'e-mail)."""
+    __tablename__ = "parametre"
+
+    cle = db.Column(db.String(50), primary_key=True)
+    valeur = db.Column(db.Text)
+
+
+class Marche(db.Model):
+    __tablename__ = "marche"
+
+    id = db.Column(db.Integer, primary_key=True)
+    reference = db.Column(db.String(50), unique=True, nullable=False)
+    titulaire = db.Column(db.String(100))                   # Fournisseur
+    lot = db.Column(db.String(100))                         # ex. « à BPU »
+    date_echeance = db.Column(db.Date)
+    montant_max = db.Column(db.Float)
+    commentaire = db.Column(db.Text)
+
+    commandes = db.relationship("Commande", back_populates="marche")
+
+    def engage(self, sauf_poste=None, sauf_commande=None):
+        """Total des postes de BdC passés sur ce marché."""
+        return sum(p.montant or 0 for c in self.commandes if c is not sauf_commande
+                   for p in c.postes if p is not sauf_poste)
+
+    @property
+    def restant(self):
+        return None if self.montant_max is None else self.montant_max - self.engage()
+
+    @property
+    def taux(self):
+        return self.engage() / self.montant_max * 100 if self.montant_max else None
+
+    @property
+    def expire(self):
+        return self.date_echeance is not None and self.date_echeance < date.today()
 
 
 class DemandeAchat(db.Model):
@@ -81,18 +126,30 @@ class PosteDA(db.Model):
     def libelle(self):
         return f"{self.nom} — {self.cle}"
 
+    @property
+    def rappel(self):
+        """Rappel du poste de DA dans l'e-mail : « 10181766@10 (55k€) »."""
+        return f"{self.cle} ({k_euros(self.montant)})"
+
 
 class Commande(db.Model):
     __tablename__ = "commande"
 
     id = db.Column(db.Integer, primary_key=True)
-    reference = db.Column(db.String(50), unique=True, nullable=False)  # N° BDC / Marché
+    # N° BdC : vide tant que le service achat ne l'a pas communiqué
+    reference = db.Column(db.String(50), unique=True)
+    marche_id = db.Column(db.Integer, db.ForeignKey("marche.id"))
     commentaire = db.Column(db.Text)
 
+    marche = db.relationship("Marche", back_populates="commandes")
     postes = db.relationship(
         "PosteCommande", back_populates="commande", cascade="all, delete-orphan",
         order_by="PosteCommande.numero",
     )
+
+    @property
+    def libelle(self):
+        return self.reference or "N° en attente"
 
     @property
     def nb_certifies(self):

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block titre %}Nouveau BdC{% endblock %}
+{% block contenu %}
+<a href="{{ url_for('liste_commandes') }}" class="small">← Bons de commande</a>
+<h3>Nouveau bon de commande</h3>
+<div class="card card-body" style="max-width: 60rem">
+  {% set dans_dialogue = false %}
+  {% include "_form_nouveau_bdc.html" %}
+</div>
+{% endblock %}

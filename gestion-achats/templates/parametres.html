@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block titre %}Paramètres{% endblock %}
+{% block contenu %}
+<h3>Paramètres de l'e-mail au service achat</h3>
+<form method="post" class="card card-body" style="max-width: 45rem">
+  {% for cle, definition in definitions.items() %}
+    <div class="mb-3"><label class="form-label" for="{{ cle }}">{{ definition[0] }}</label>
+      {% if cle == 'mail_signature' %}
+        <textarea name="{{ cle }}" id="{{ cle }}" class="form-control" rows="4">{{ valeurs[cle] }}</textarea>
+        <div class="form-text">Si votre messagerie ajoute déjà votre signature complète, gardez seulement votre prénom.</div>
+      {% else %}
+        <input name="{{ cle }}" id="{{ cle }}" class="form-control" value="{{ valeurs[cle] }}">
+      {% endif %}
+    </div>
+  {% endfor %}
+  <div><button class="btn btn-primary">Enregistrer</button></div>
+</form>
+{% endblock %}
