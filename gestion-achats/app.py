@@ -247,13 +247,14 @@ def enregistrer_routes(app):
             except ValueError:
                 flash("Valeur numérique ou date invalide.", "danger")
                 return render_template("poste_cmd_form.html", cmd=cmd, poste=poste,
-                                       postes_da=postes_da_dispo)
+                                       postes_da=postes_da_dispo, csf_coche=poste.csf)
             if poste_da_id and db.session.get(PosteDA, poste_da_id) is None:
                 poste_da_id = None
             poste.poste_da_id = poste_da_id
             poste.nom = champ("nom")
             poste.csf = "csf" in request.form
-            poste.ref_livrable = champ("ref_livrable")
+            # La référence du livrable justifie la CSF : elle n'existe que si la CSF est faite
+            poste.ref_livrable = champ("ref_livrable") if poste.csf else None
             poste.ptf = champ("ptf")
             if poste_id is None:
                 cmd.postes.append(poste)
@@ -262,13 +263,16 @@ def enregistrer_routes(app):
                     return redirect(url_for("form_poste_commande", cmd_id=cmd.id))
                 return redirect(url_for("detail_commande", cmd_id=cmd.id))
             cmd = db.session.get(Commande, cmd.id)
+        # ?csf=1 : arrivée depuis le bouton « À faire », la case CSF est pré-cochée
+        csf_coche = poste.csf or request.args.get("csf") == "1"
         return render_template("poste_cmd_form.html", cmd=cmd, poste=poste,
-                               postes_da=postes_da_dispo)
+                               postes_da=postes_da_dispo, csf_coche=csf_coche)
 
-    @app.post("/poste-commande/<int:poste_id>/csf")
-    def basculer_csf(poste_id):
+    @app.post("/poste-commande/<int:poste_id>/annuler-csf")
+    def annuler_csf(poste_id):
         poste = db.get_or_404(PosteCommande, poste_id)
-        poste.csf = not poste.csf
+        poste.csf = False
+        poste.ref_livrable = None
         db.session.commit()
         return redirect(request.referrer or url_for("detail_commande", cmd_id=poste.commande_id))
 

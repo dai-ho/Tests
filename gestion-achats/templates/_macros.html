@@ -12,11 +12,15 @@
 {% endmacro %}
 
 {% macro badge_csf(poste) %}
-<form method="post" action="{{ url_for('basculer_csf', poste_id=poste.id) }}" class="d-inline">
-  <button class="btn btn-sm {{ 'btn-success' if poste.csf else 'btn-outline-secondary' }}" title="Cliquer pour basculer">
-    {{ 'Fait' if poste.csf else 'À faire' }}
-  </button>
+{% if poste.csf %}
+<form method="post" action="{{ url_for('annuler_csf', poste_id=poste.id) }}" class="d-inline"
+      data-confirmer="Annuler la CSF du poste {{ poste.numero }} ? La référence du livrable sera effacée.">
+  <button class="btn btn-sm btn-success" title="Cliquer pour annuler la CSF">Fait</button>
 </form>
+{% else %}
+<a class="btn btn-sm btn-outline-secondary" title="Saisir la CSF et la référence du livrable"
+   href="{{ url_for('form_poste_commande', poste_id=poste.id, csf=1) }}">À faire</a>
+{% endif %}
 {% endmacro %}
 
 {% macro legende_da() %}
@@ -31,6 +35,6 @@
 <div class="legende small text-muted my-2">
   <span class="bg-success-subtle border">CSF fait</span>
   <span class="bg-danger-subtle border">livraison dépassée sans CSF</span>
-  <span class="bg-warning-subtle border">pas de référence de livrable</span>
+  <span class="bg-warning-subtle border">CSF faite sans référence de livrable</span>
 </div>
 {% endmacro %}

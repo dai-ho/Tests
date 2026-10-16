@@ -20,10 +20,10 @@ def couleur_poste_da(poste):
 
 
 def couleur_poste_commande(poste):
+    if poste.csf and not poste.ref_livrable:
+        return "table-warning"
     if poste.csf:
         return "table-success"
     if poste.en_retard:
         return "table-danger"
-    if not poste.ref_livrable:
-        return "table-warning"
     return ""

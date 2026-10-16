@@ -8,8 +8,8 @@
     <div class="col-md-3"><label class="form-label">Poste *</label>
       <input name="numero" type="number" class="form-control" required value="{{ poste.numero or '' }}"></div>
     <div class="col-md-9"><label class="form-label">Poste de DA associé</label>
-      <input class="form-control mb-1" type="search" placeholder="Rechercher un poste de DA…" id="recherche-poste-da">
-      <select name="poste_da_id" class="form-select" id="poste-da" size="6">
+      <input class="form-control mb-1" type="search" placeholder="Filtrer la liste (référence DA, nom, imputation…)" id="recherche-poste-da">
+      <select name="poste_da_id" class="form-select" id="poste-da">
         <option value="" {{ 'selected' if not poste.poste_da_id }}>— aucun —</option>
         {% for pd in postes_da %}
           <option value="{{ pd.id }}" data-nom="{{ pd.nom }}" data-livraison="{{ pd.date_livraison or '' }}"
@@ -21,15 +21,15 @@
     <div class="col-12"><label class="form-label">Nom *</label>
       <input name="nom" id="nom" class="form-control" required value="{{ poste.nom or '' }}">
       <div class="form-text">Pré-rempli avec le nom du poste de DA si vide.</div></div>
-    <div class="col-md-4"><label class="form-label">Date de livraison</label>
+    <div class="col-md-6"><label class="form-label">Date de livraison</label>
       <input name="date_livraison" id="date-livraison" type="date" class="form-control" value="{{ poste.date_livraison or '' }}"></div>
-    <div class="col-md-4"><label class="form-label">PTF (proposition technique et financière)</label>
+    <div class="col-md-6"><label class="form-label">PTF (proposition technique et financière)</label>
       <input name="ptf" class="form-control" value="{{ poste.ptf or '' }}"></div>
-    <div class="col-md-4"><label class="form-label">Référence du livrable</label>
-      <input name="ref_livrable" class="form-control" value="{{ poste.ref_livrable or '' }}"></div>
     <div class="col-12"><div class="form-check form-switch">
-      <input class="form-check-input" type="checkbox" name="csf" id="csf" {{ 'checked' if poste.csf }}>
+      <input class="form-check-input" type="checkbox" name="csf" id="csf" {{ 'checked' if csf_coche }}>
       <label class="form-check-label" for="csf">Certification de service fait (CSF) réalisée</label></div></div>
+    <div class="col-md-6" id="bloc-livrable" {{ 'hidden' if not csf_coche }}><label class="form-label">Référence du livrable (justificatif de la CSF)</label>
+      <input name="ref_livrable" id="ref-livrable" class="form-control" value="{{ poste.ref_livrable or '' }}"></div>
   </div>
   <div class="d-flex gap-2 mt-4">
     <button class="btn btn-primary">Enregistrer</button>
@@ -45,6 +45,20 @@
       opt.hidden = opt.value !== "" && !mots.every((m) => opt.text.toLowerCase().includes(m));
     }
   });
+  // Le premier poste correspondant au filtre est sélectionné automatiquement
+  document.getElementById("recherche-poste-da").addEventListener("change", () => {
+    const premier = Array.from(select.options).find((o) => o.value && !o.hidden);
+    if (premier && (select.selectedOptions[0]?.hidden || !select.value)) {
+      select.value = premier.value;
+      select.dispatchEvent(new Event("change"));
+    }
+  });
+  const csf = document.getElementById("csf"), blocLivrable = document.getElementById("bloc-livrable");
+  csf.addEventListener("change", () => {
+    blocLivrable.hidden = !csf.checked;
+    if (csf.checked) document.getElementById("ref-livrable").focus();
+  });
+  if (csf.checked && !document.getElementById("ref-livrable").value) document.getElementById("ref-livrable").focus();
   select.addEventListener("change", () => {
     const opt = select.selectedOptions[0];
     if (!opt || !opt.value) return;
