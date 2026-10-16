@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros %}
+{% block titre %}Demandes d'achat{% endblock %}
+{% block contenu %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="mb-0">Demandes d'achat</h3>
+  <a class="btn btn-primary" href="{{ url_for('form_da') }}">+ Nouvelle DA</a>
+</div>
+{{ macros.filtre("table-da") }}
+<div class="table-responsive"><table class="table table-hover" id="table-da">
+  <thead><tr>
+    <th data-tri>Référence</th><th data-tri class="num">Postes</th><th data-tri class="num">Montant total</th>
+    <th data-tri>Imputations</th><th data-tri>Demandeurs</th><th data-tri>Certificateurs</th>
+    <th data-tri class="num">Postes commandés</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for da in das %}
+    {% set commandes = da.postes|selectattr('postes_commande')|list %}
+    <tr>
+      <td><a href="{{ url_for('detail_da', da_id=da.id) }}"><strong>{{ da.reference }}</strong></a></td>
+      <td class="num">{{ da.postes|length }}</td>
+      <td class="num" data-valeur="{{ da.montant_total }}">{{ da.montant_total|euros }}</td>
+      <td>{{ da.postes|map(attribute='code_imputation')|select|unique|join(', ') }}</td>
+      <td>{{ da.postes|map(attribute='demandeur')|select|unique|join(', ') }}</td>
+      <td>{{ da.postes|map(attribute='certificateur')|select|unique|join(', ') }}</td>
+      <td class="num">{{ commandes|length }} / {{ da.postes|length }}</td>
+      <td class="actions"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('detail_da', da_id=da.id) }}">Ouvrir</a></td>
+    </tr>
+  {% else %}<tr><td colspan="8" class="text-muted">Aucune DA. Créez-en une ou importez votre fichier Excel.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros %}
+{% block titre %}Postes commande{% endblock %}
+{% block contenu %}
+<h3>Tous les postes de commande</h3>
+{{ macros.filtre("table-postes-cmd", "Filtrer : commande, DA, livrable, certificateur…") }}
+{{ macros.legende_cmd() }}
+<div class="table-responsive"><table class="table table-sm table-hover align-middle" id="table-postes-cmd">
+  <thead><tr>
+    <th data-tri>Commande</th><th data-tri>Poste</th><th data-tri>Nom</th><th data-tri>Poste de DA</th>
+    <th data-tri>Imputation</th><th data-tri>Certificateur</th><th data-tri>Livraison</th><th data-tri>PTF</th>
+    <th data-tri>Réf. livrable</th><th data-tri>CSF</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for p in postes %}
+    <tr class="{{ couleur_cmd(p) }}">
+      <td><a href="{{ url_for('detail_commande', cmd_id=p.commande_id) }}">{{ p.commande.reference }}</a></td>
+      <td>{{ p.numero }}</td><td>{{ p.nom }}</td>
+      <td>{% if p.poste_da %}<a href="{{ url_for('detail_da', da_id=p.poste_da.da_id) }}">{{ p.poste_da.da.reference }} / {{ p.poste_da.numero }}</a>{% endif %}</td>
+      <td>{{ p.poste_da.code_imputation if p.poste_da and p.poste_da.code_imputation }}</td>
+      <td>{{ p.poste_da.certificateur if p.poste_da and p.poste_da.certificateur }}</td>
+      <td data-valeur="{{ p.date_livraison or '' }}">{{ p.date_livraison|date_fr }}</td>
+      <td>{{ p.ptf or '' }}</td><td>{{ p.ref_livrable or '' }}</td>
+      <td data-valeur="{{ 1 if p.csf else 0 }}">{{ macros.badge_csf(p) }}</td>
+      <td class="actions"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('form_poste_commande', poste_id=p.id) }}">Modifier</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}

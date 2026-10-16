@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros %}
+{% block titre %}Commande {{ cmd.reference }}{% endblock %}
+{% block contenu %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <a href="{{ url_for('liste_commandes') }}" class="small">← Commandes</a>
+    <h3 class="mb-0">Commande {{ cmd.reference }}</h3>
+    <div class="text-muted">{{ cmd.postes|length }} poste(s) – {{ cmd.nb_certifies }} certifié(s)</div>
+    {% if cmd.commentaire %}<p class="mt-2 mb-0">{{ cmd.commentaire }}</p>{% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary" href="{{ url_for('form_poste_commande', cmd_id=cmd.id) }}">+ Ajouter un poste</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('form_commande', cmd_id=cmd.id) }}">Modifier</a>
+    <form method="post" action="{{ url_for('supprimer_commande', cmd_id=cmd.id) }}" data-confirmer="Supprimer la commande {{ cmd.reference }} et tous ses postes ?">
+      <button class="btn btn-outline-danger">Supprimer</button></form>
+  </div>
+</div>
+{{ macros.legende_cmd() }}
+<div class="table-responsive"><table class="table table-hover align-middle">
+  <thead><tr>
+    <th>Poste</th><th>Nom</th><th>Poste de DA</th><th class="num">Montant DA</th><th>Imputation</th>
+    <th>Livraison</th><th>PTF</th><th>Réf. livrable</th><th>CSF</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for p in cmd.postes %}
+    <tr class="{{ couleur_cmd(p) }}">
+      <td>{{ p.numero }}</td><td>{{ p.nom }}</td>
+      <td>{% if p.poste_da %}<a href="{{ url_for('detail_da', da_id=p.poste_da.da_id) }}">{{ p.poste_da.da.reference }} / {{ p.poste_da.numero }}</a>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+      <td class="num">{{ p.poste_da.montant|euros if p.poste_da }}</td>
+      <td>{{ p.poste_da.code_imputation if p.poste_da and p.poste_da.code_imputation }}</td>
+      <td>{{ p.date_livraison|date_fr }}</td><td>{{ p.ptf or '' }}</td><td>{{ p.ref_livrable or '' }}</td>
+      <td>{{ macros.badge_csf(p) }}</td>
+      <td class="actions">
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('form_poste_commande', poste_id=p.id) }}">Modifier</a>
+        {{ macros.bouton_supprimer(url_for('supprimer_poste_commande', poste_id=p.id), 'Supprimer le poste ' ~ p.numero ~ ' ?') }}
+      </td>
+    </tr>
+  {% else %}<tr><td colspan="10" class="text-muted">Aucun poste.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}
