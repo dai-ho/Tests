@@ -5,9 +5,6 @@
 <form method="post" class="card card-body" style="max-width: 40rem">
   <div class="mb-3"><label class="form-label">N° BDC / Marché *</label>
     <input name="reference" class="form-control" required autofocus value="{{ cmd.reference or '' }}"></div>
-  <div class="mb-3"><label class="form-label">Société</label>
-    <input name="societe" class="form-control" list="liste-societes" value="{{ cmd.societe or '' }}">
-    <datalist id="liste-societes">{% for v in societes %}<option value="{{ v }}">{% endfor %}</datalist></div>
   <div class="mb-3"><label class="form-label">Commentaire</label>
     <textarea name="commentaire" class="form-control" rows="3">{{ cmd.commentaire or '' }}</textarea></div>
   <div class="d-flex gap-2">

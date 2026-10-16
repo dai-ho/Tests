@@ -53,7 +53,7 @@ class PosteDA(db.Model):
     annee = db.Column(db.Integer)
     projet = db.Column(db.String(100))
     code_imputation = db.Column(db.String(50))              # Centre de coût
-    budget = db.Column(db.Float)
+    budget = db.Column(db.Float)  # colonne cachée du fichier : conservée, non affichée pour l'instant
     statut = db.Column(db.String(20), nullable=False, default="")
     remarque = db.Column(db.Text)
     date_livraison = db.Column(db.Date)
@@ -87,7 +87,6 @@ class Commande(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     reference = db.Column(db.String(50), unique=True, nullable=False)  # N° BDC / Marché
-    societe = db.Column(db.String(100))
     commentaire = db.Column(db.Text)
 
     postes = db.relationship(
@@ -103,6 +102,11 @@ class Commande(db.Model):
     def montant_total(self):
         return sum(p.montant or 0 for p in self.postes)
 
+    @property
+    def societes(self):
+        """Fournisseurs des postes (en général un seul par BdC)."""
+        return list(dict.fromkeys(p.societe for p in self.postes if p.societe))
+
 
 class PosteCommande(db.Model):
     __tablename__ = "poste_commande"
@@ -113,6 +117,7 @@ class PosteCommande(db.Model):
     numero = db.Column(db.Integer, nullable=False)
     poste_da_id = db.Column(db.Integer, db.ForeignKey("poste_da.id"))
     nom = db.Column(db.String(255), nullable=False)        # Désignation
+    societe = db.Column(db.String(100))                     # Fournisseur
     activite = db.Column(db.String(100))
     montant = db.Column(db.Float)
     date_livraison = db.Column(db.Date)                     # Échéance

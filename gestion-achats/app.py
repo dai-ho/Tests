@@ -8,6 +8,7 @@ from collections import defaultdict
 from datetime import date, datetime
 
 from flask import Flask, flash, redirect, render_template, request, send_file, url_for
+from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
 import excel_io
@@ -17,8 +18,6 @@ from models import STATUTS_DA, Commande, DemandeAchat, PosteCommande, PosteDA, d
 DOSSIER = os.path.dirname(os.path.abspath(__file__))
 DOSSIER_DONNEES = os.path.join(DOSSIER, "donnees")
 FICHIER_BASE = os.path.join(DOSSIER_DONNEES, "achats.db")
-MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin",
-        "juil.", "août", "sept.", "oct.", "nov.", "déc."]
 
 
 def mettre_de_cote_base_obsolete(chemin):
@@ -32,6 +31,19 @@ def mettre_de_cote_base_obsolete(chemin):
         shutil.move(chemin, chemin.replace(".db", f"_ancienne_{datetime.now():%Y%m%d_%H%M%S}.db"))
 
 
+def migrer():
+    """Mises à jour de la structure d'une base existante."""
+    colonnes = {c["name"] for c in inspect(db.engine).get_columns("poste_commande")}
+    if "societe" not in colonnes:
+        # La société passe du BdC à chacun de ses postes
+        avait_societe = "societe" in {c["name"] for c in inspect(db.engine).get_columns("commande")}
+        with db.engine.begin() as cnx:
+            cnx.execute(text("ALTER TABLE poste_commande ADD COLUMN societe VARCHAR(100)"))
+            if avait_societe:
+                cnx.execute(text("UPDATE poste_commande SET societe = "
+                                 "(SELECT societe FROM commande WHERE commande.id = commande_id)"))
+
+
 def create_app(db_uri=None):
     app = Flask(__name__)
     os.makedirs(DOSSIER_DONNEES, exist_ok=True)
@@ -43,6 +55,7 @@ def create_app(db_uri=None):
     db.init_app(app)
     with app.app_context():
         db.create_all()
+        migrer()
 
     @app.template_filter("euros")
     def euros(v):
@@ -149,22 +162,6 @@ def enregistrer_routes(app):
             depassements=[p for p in postes_da if p.statut != "supprimé" and p.disponible < 0],
         )
 
-    @app.route("/planning")
-    def planning():
-        """Montants des postes de BdC par activité et par mois d'échéance
-        (équivalent de la colonne Excel « Activité:mois:année »)."""
-        postes = PosteCommande.query.filter(PosteCommande.date_livraison.isnot(None)).all()
-        annees = sorted({p.date_livraison.year for p in postes}) or [date.today().year]
-        annee = request.args.get("annee", type=int) or (
-            date.today().year if date.today().year in annees else annees[-1])
-        tableau = defaultdict(lambda: [0.0] * 12)
-        for p in postes:
-            if p.date_livraison.year == annee:
-                tableau[p.activite or "—"][p.date_livraison.month - 1] += p.montant or 0
-        totaux_mois = [sum(ligne[m] for ligne in tableau.values()) for m in range(12)]
-        return render_template("planning.html", annees=annees, annee=annee, mois=MOIS,
-                               tableau=sorted(tableau.items()), totaux_mois=totaux_mois)
-
     # --- Demandes d'achat -----------------------------------------------------
 
     @app.route("/da")
@@ -232,7 +229,6 @@ def enregistrer_routes(app):
                 poste.numero = champ_entier("numero")
                 poste.annee = champ_entier("annee")
                 poste.montant = champ_montant("montant")
-                poste.budget = champ_montant("budget")
                 poste.date_livraison = champ_date("date_livraison")
             except ValueError:
                 flash("Valeur numérique ou date invalide.", "danger")
@@ -281,10 +277,8 @@ def enregistrer_routes(app):
     @app.route("/commandes/<int:cmd_id>/modifier", methods=["GET", "POST"])
     def form_commande(cmd_id=None):
         cmd = db.get_or_404(Commande, cmd_id) if cmd_id else Commande()
-        societes = valeurs_distinctes(Commande.societe)
         if request.method == "POST":
             cmd.reference = champ("reference")
-            cmd.societe = champ("societe")
             cmd.commentaire = champ("commentaire")
             if cmd_id is None:
                 db.session.add(cmd)
@@ -292,7 +286,7 @@ def enregistrer_routes(app):
                 if cmd_id is None:
                     return redirect(url_for("form_poste_commande", cmd_id=cmd.id))
                 return redirect(url_for("detail_commande", cmd_id=cmd.id))
-        return render_template("cmd_form.html", cmd=cmd, societes=societes)
+        return render_template("cmd_form.html", cmd=cmd)
 
     @app.route("/commandes/<int:cmd_id>")
     def detail_commande(cmd_id):
@@ -316,17 +310,20 @@ def enregistrer_routes(app):
             cmd = db.get_or_404(Commande, cmd_id)
             dernier = max((p.numero for p in cmd.postes), default=0)
             precedent = cmd.postes[-1] if cmd.postes else None
+            # Reprise du fournisseur et de l'activité du poste précédent
             poste = PosteCommande(numero=dernier + 10, csf=False,
+                                  societe=precedent.societe if precedent else None,
                                   activite=precedent.activite if precedent else None)
         # Postes de DA proposés : ceux ni clos ni supprimés, plus le poste déjà associé
         postes_da_dispo = [p for p in tous_les_postes_da()
                            if p.statut not in ("clos", "supprimé") or p.id == poste.poste_da_id]
-        activites = valeurs_distinctes(PosteCommande.activite)
+        suggestions = {"activites": valeurs_distinctes(PosteCommande.activite),
+                       "societes": valeurs_distinctes(PosteCommande.societe)}
 
         def afficher(csf_coche):
             return render_template("poste_cmd_form.html", cmd=cmd, poste=poste,
-                                   postes_da=postes_da_dispo, activites=activites,
-                                   csf_coche=csf_coche)
+                                   postes_da=postes_da_dispo, csf_coche=csf_coche,
+                                   **suggestions)
 
         if request.method == "POST":
             try:
@@ -341,6 +338,7 @@ def enregistrer_routes(app):
                 poste_da_id = None
             poste.poste_da_id = poste_da_id
             poste.nom = champ("nom")
+            poste.societe = champ("societe")
             poste.activite = champ("activite")
             poste.ptf = champ("ptf")
             poste.csf = "csf" in request.form

@@ -19,15 +19,14 @@ Pour reprendre l'existant : menu **Importer Excel**, puis choisir le fichier act
 Reprend la structure du fichier **Budgets GT** (onglets « Suivi DA » et « Suivi BdC ») :
 
 - **Demandes d'achat** : n° de DA (peut rester vide tant qu'il n'est pas attribué), postes avec année, projet,
-  désignation, valeur, centre de coût, budget, statut (en cours / clos / supprimé), remarque.
+  désignation, valeur, centre de coût, statut (en cours / clos / supprimé), remarque.
   **Imputé** (somme des postes de BdC rattachés) et **Disponible** sont calculés automatiquement.
-- **Bons de commande** : n° BDC/Marché, société, postes avec activité, désignation, montant, échéance, PAF,
-  CSF et CR pour CSF (ce dernier n'apparaît que lorsque la CSF est cochée). Chaque poste est rattaché à un
+- **Bons de commande** : n° BDC/Marché, postes avec société (fournisseur), activité, désignation, montant,
+  échéance, PTF (PAF), CSF et CR pour CSF (ce dernier n'apparaît que lorsque la CSF est cochée). Chaque poste est rattaché à un
   poste de DA, choisi dans une liste qui affiche le disponible restant.
 - **Suivi DA / Suivi BdC** : vues tableur avec filtre instantané et tri par colonne.
 - **Tableau de bord** : synthèse Valeur / Imputé / Disponible par projet et année, échéances dépassées sans
   CSF, postes de DA sans BdC, dépassements.
-- **Planning** : montants des postes de BdC par activité et par mois d'échéance.
 - **Couleurs des lignes** : mêmes règles et mêmes teintes que la mise en forme conditionnelle du fichier
   Excel, regroupées dans `regles.py`.
 - **Import / export Excel** au format du fichier Budgets GT (l'export est réimportable).

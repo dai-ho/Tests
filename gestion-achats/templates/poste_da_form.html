@@ -19,13 +19,11 @@
     <div class="col-12"><label class="form-label">Désignation *</label>
       <input name="nom" class="form-control" required autofocus value="{{ poste.nom or '' }}">
       <div class="form-text">C'est par la désignation que les postes de BdC sont rattachés à ce poste lors de l'import Excel : gardez-la unique.</div></div>
-    <div class="col-md-4"><label class="form-label">Valeur (€)</label>
+    <div class="col-md-6"><label class="form-label">Valeur (€)</label>
       <input name="montant" class="form-control" inputmode="decimal" value="{{ poste.montant|saisie }}"></div>
-    <div class="col-md-4"><label class="form-label">Centre de coût</label>
+    <div class="col-md-6"><label class="form-label">Centre de coût</label>
       <input name="code_imputation" class="form-control" list="liste-centres" placeholder="ex. 23T_0531" value="{{ poste.code_imputation or '' }}">
       <datalist id="liste-centres">{% for v in centres %}<option value="{{ v }}">{% endfor %}</datalist></div>
-    <div class="col-md-4"><label class="form-label">Budget (€)</label>
-      <input name="budget" class="form-control" inputmode="decimal" value="{{ poste.budget|saisie }}"></div>
     <div class="col-12"><label class="form-label">Remarque</label>
       <textarea name="remarque" class="form-control" rows="2">{{ poste.remarque or '' }}</textarea></div>
   </div>

@@ -5,7 +5,7 @@
 <div class="d-flex justify-content-between align-items-start mb-3">
   <div>
     <a href="{{ url_for('liste_commandes') }}" class="small">← Bons de commande</a>
-    <h3 class="mb-0">BdC {{ cmd.reference }}{% if cmd.societe %} <small class="text-muted">– {{ cmd.societe }}</small>{% endif %}</h3>
+    <h3 class="mb-0">BdC {{ cmd.reference }}{% if cmd.societes %} <small class="text-muted">– {{ cmd.societes|join(', ') }}</small>{% endif %}</h3>
     <div class="text-muted">{{ cmd.postes|length }} poste(s) – {{ cmd.montant_total|euros }} – {{ cmd.nb_certifies }} CSF OK</div>
     {% if cmd.commentaire %}<p class="mt-2 mb-0">{{ cmd.commentaire }}</p>{% endif %}
   </div>
@@ -19,13 +19,13 @@
 {{ macros.legende(couleurs_cmd) }}
 <div class="table-responsive"><table class="table table-hover align-middle">
   <thead><tr>
-    <th>Poste</th><th>Désignation</th><th>Activité</th><th>Imputation (poste de DA)</th><th class="num">Montant</th>
+    <th>Poste</th><th>Désignation</th><th>Société</th><th>Activité</th><th>Imputation (poste de DA)</th><th class="num">Montant</th>
     <th>Échéance</th><th>PAF</th><th>CSF</th><th>CR pour CSF</th><th></th>
   </tr></thead>
   <tbody>
   {% for p in cmd.postes %}
     <tr style="{{ style_cmd(p) }}">
-      <td>{{ p.numero }}</td><td>{{ p.nom }}</td><td>{{ p.activite or '' }}</td>
+      <td>{{ p.numero }}</td><td>{{ p.nom }}</td><td>{{ p.societe or '' }}</td><td>{{ p.activite or '' }}</td>
       <td>{{ macros.lien_da(p.poste_da) if p.poste_da else '<span class="text-danger">non rattaché</span>'|safe }}</td>
       {{ macros.montant(p.montant) }}<td>{{ p.date_livraison|date_fr }}</td><td class="small">{{ p.ptf or '' }}</td>
       <td>{{ macros.badge_csf(p) }}</td><td class="small">{{ p.ref_livrable or '' }}</td>
@@ -34,7 +34,7 @@
         {{ macros.bouton_supprimer(url_for('supprimer_poste_commande', poste_id=p.id), 'Supprimer le poste ' ~ p.numero ~ ' ?') }}
       </td>
     </tr>
-  {% else %}<tr><td colspan="10" class="text-muted">Aucun poste.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="11" class="text-muted">Aucun poste.</td></tr>{% endfor %}
   </tbody>
 </table></div>
 {% endblock %}

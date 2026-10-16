@@ -251,6 +251,7 @@ def _importer_cmd(feuille, erreurs):
             poste_da, alerte = _trouver_poste_da(v, par_designation, par_cle)
             champs = dict(
                 nom=_texte(v.get("nom")) or (poste_da.nom if poste_da else f"Poste {numero}"),
+                societe=_texte(v.get("societe")),
                 activite=_texte(v.get("activite")),
                 montant=_montant(v.get("montant")),
                 date_livraison=_date(v.get("date_livraison")),
@@ -264,7 +265,6 @@ def _importer_cmd(feuille, erreurs):
             if cmd is None:
                 cmd = cmds[ref] = Commande(reference=ref)
                 db.session.add(cmd)
-            cmd.societe = _texte(v.get("societe")) or cmd.societe
             poste = next((p for p in cmd.postes if p.numero == numero), None)
             if poste is None:
                 poste = PosteCommande(numero=numero)
@@ -344,7 +344,7 @@ def exporter():
          p.remarque, p.date_livraison, p.demandeur, p.certificateur]
         for p in postes_da])
     _ecrire_feuille(wb.create_sheet("Suivi BdC"), ENTETES_CMD, [
-        [p.commande.societe, p.activite, p.poste_da.nom if p.poste_da else None,
+        [p.societe, p.activite, p.poste_da.nom if p.poste_da else None,
          _entier_si_possible(p.commande.reference), p.numero, p.nom, p.montant, p.date_livraison,
          p.poste_da.cle if p.poste_da else None, p.ptf, "OK" if p.csf else None, p.ref_livrable]
         for p in postes_cmd])

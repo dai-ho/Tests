@@ -19,9 +19,12 @@
         {% endfor %}
       </select>
       <div class="form-text">Les postes de DA clos ou supprimés ne sont pas proposés.</div></div>
-    <div class="col-md-8"><label class="form-label">Désignation *</label>
+    <div class="col-12"><label class="form-label">Désignation *</label>
       <input name="nom" id="nom" class="form-control" required value="{{ poste.nom or '' }}"></div>
-    <div class="col-md-4"><label class="form-label">Activité</label>
+    <div class="col-md-6"><label class="form-label">Société (fournisseur)</label>
+      <input name="societe" class="form-control" list="liste-societes" value="{{ poste.societe or '' }}">
+      <datalist id="liste-societes">{% for v in societes %}<option value="{{ v }}">{% endfor %}</datalist></div>
+    <div class="col-md-6"><label class="form-label">Activité</label>
       <input name="activite" id="activite" class="form-control" list="liste-activites" value="{{ poste.activite or '' }}">
       <datalist id="liste-activites">{% for v in activites %}<option value="{{ v }}">{% endfor %}</datalist></div>
     <div class="col-md-4"><label class="form-label">Montant (€)</label>
@@ -29,7 +32,7 @@
       <div class="form-text" id="info-disponible"></div></div>
     <div class="col-md-4"><label class="form-label">Échéance</label>
       <input name="date_livraison" type="date" class="form-control" value="{{ poste.date_livraison or '' }}"></div>
-    <div class="col-md-4"><label class="form-label">PAF / PTF</label>
+    <div class="col-md-4"><label class="form-label">PTF (PAF)</label>
       <input name="ptf" class="form-control" value="{{ poste.ptf or '' }}"></div>
     <div class="col-12"><div class="form-check form-switch">
       <input class="form-check-input" type="checkbox" name="csf" id="csf" {{ 'checked' if csf_coche }}>

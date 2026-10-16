@@ -9,7 +9,7 @@
 {{ macros.filtre("table-cmd", "Filtrer : n° BdC, société, activité…") }}
 <div class="table-responsive"><table class="table table-hover" id="table-cmd">
   <thead><tr>
-    <th data-tri>BDC/Marché</th><th data-tri>Société</th><th data-tri>Activité(s)</th><th data-tri class="num">Postes</th>
+    <th data-tri>BDC/Marché</th><th data-tri>Société(s)</th><th data-tri>Activité(s)</th><th data-tri class="num">Postes</th>
     <th data-tri class="num">Montant</th><th data-tri class="num">CSF OK</th><th data-tri>Prochaine échéance</th><th></th>
   </tr></thead>
   <tbody>
@@ -18,7 +18,7 @@
     {% set prochaine = (a_certifier|map(attribute='date_livraison')|min) if a_certifier else none %}
     <tr style="{{ '--bs-table-bg: #BFBFBF' if c.postes and c.nb_certifies == c.postes|length }}">
       <td><a href="{{ url_for('detail_commande', cmd_id=c.id) }}"><strong>{{ c.reference }}</strong></a></td>
-      <td>{{ c.societe or '' }}</td>
+      <td>{{ c.societes|join(', ') }}</td>
       <td>{{ c.postes|map(attribute='activite')|select|unique|join(', ') }}</td>
       <td class="num">{{ c.postes|length }}</td>
       {{ macros.montant(c.montant_total) }}
