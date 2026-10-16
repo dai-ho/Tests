@@ -18,3 +18,5 @@ dialog.dialogue::backdrop { background: rgba(0,0,0,.4); }
 .tableau-mail { border-collapse: collapse; margin: 0 0 1em; }
 .tableau-mail td { padding: .1em 1.5em .1em 0; white-space: nowrap; }
 .tableau-mail td.num { text-align: right; }
+.bandeau-filtre { background: #fff; border-bottom: 1px solid #dee2e6; }
+.bandeau-filtre select { width: auto; }

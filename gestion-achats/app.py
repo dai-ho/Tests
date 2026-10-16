@@ -7,7 +7,8 @@ import webbrowser
 from collections import defaultdict
 from datetime import date, datetime
 
-from flask import Flask, flash, redirect, render_template, request, send_file, url_for
+from flask import (Flask, flash, redirect, render_template, request, send_file, session,
+                   url_for)
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
@@ -15,6 +16,9 @@ import excel_io
 import mail
 import regles
 from models import STATUTS_DA, Commande, DemandeAchat, Marche, PosteCommande, PosteDA, db
+
+# Pages sur lesquelles s'applique le filtre année / projet
+PAGES_FILTREES = {"accueil", "liste_da", "postes_da", "liste_commandes", "postes_commande"}
 
 DOSSIER = os.path.dirname(os.path.abspath(__file__))
 DOSSIER_DONNEES = os.path.join(DOSSIER, "donnees")
@@ -107,6 +111,16 @@ def create_app(db_uri=None):
                 "mailto": mail.lien_mailto,
                 "aujourdhui": date.today()}
 
+    @app.context_processor
+    def contexte_filtre():
+        if request.endpoint not in PAGES_FILTREES:
+            return {}
+        annee, projet = filtre_courant()
+        annees = set(valeurs_distinctes(PosteDA.annee)) | {date.today().year}
+        return {"filtre_actif": True, "filtre_annee": annee, "filtre_projet": projet,
+                "filtre_annees": sorted(annees, reverse=True),
+                "filtre_projets": valeurs_distinctes(PosteDA.projet)}
+
     enregistrer_routes(app)
     return app
 
@@ -148,6 +162,25 @@ def tous_les_postes_da():
     return (PosteDA.query.join(DemandeAchat)
             .order_by(DemandeAchat.reference.is_(None), DemandeAchat.reference,
                       PosteDA.numero).all())
+
+
+def filtre_courant():
+    """(année, projet) choisis dans le bandeau de filtre : année en cours par défaut,
+    None = toutes les années ; "" = tous les projets."""
+    return session.get("annee", date.today().year), session.get("projet", "")
+
+
+def garder_poste_da(p, annee, projet):
+    return (annee is None or p.annee == annee) and (not projet or p.projet == projet)
+
+
+def garder_poste_cmd(p, annee, projet):
+    """Un poste de BdC prend l'année et le projet de son poste de DA ; à défaut,
+    l'année de son échéance et son activité."""
+    pd = p.poste_da
+    a = pd.annee if pd and pd.annee else (p.date_livraison.year if p.date_livraison else None)
+    pr = (pd.projet if pd and pd.projet else None) or p.activite
+    return (annee is None or a == annee) and (not projet or pr == projet)
 
 
 def postes_da_ouverts(sauf_id=None):
@@ -211,10 +244,20 @@ def enregistrer_routes(app):
 
     # --- Tableau de bord ------------------------------------------------------
 
+    @app.route("/filtre")
+    def filtrer():
+        annee = request.args.get("annee", "")
+        session["annee"] = int(annee) if annee.isdigit() else None
+        session["projet"] = request.args.get("projet", "")
+        retour = request.args.get("retour", "")
+        return redirect(retour if retour.startswith("/") and not retour.startswith("//")
+                        else url_for("accueil"))
+
     @app.route("/")
     def accueil():
-        postes_da = tous_les_postes_da()
-        postes_cmd = PosteCommande.query.all()
+        annee, projet = filtre_courant()
+        postes_da = [p for p in tous_les_postes_da() if garder_poste_da(p, annee, projet)]
+        postes_cmd = [p for p in PosteCommande.query if garder_poste_cmd(p, annee, projet)]
         actifs = [p for p in postes_da if p.statut not in ("clos", "supprimé")]
         return render_template(
             "accueil.html",
@@ -223,7 +266,9 @@ def enregistrer_routes(app):
                              key=lambda p: p.date_livraison),
             non_imputes=[p for p in actifs if p.impute == 0],
             depassements=[p for p in postes_da if p.statut != "supprimé" and p.disponible < 0],
-            en_attente=Commande.query.filter(Commande.reference.is_(None)).all(),
+            en_attente=[c for c in Commande.query.filter(Commande.reference.is_(None))
+                        if not c.postes or any(garder_poste_cmd(p, annee, projet)
+                                               for p in c.postes)],
             marches_alerte=[m for m in Marche.query.order_by(Marche.reference)
                             if not m.expire and m.taux is not None and m.taux >= 90],
         )
@@ -232,9 +277,19 @@ def enregistrer_routes(app):
 
     @app.route("/da")
     def liste_da():
-        das = (DemandeAchat.query
-               .order_by(DemandeAchat.reference.is_(None), DemandeAchat.reference).all())
-        return render_template("da_liste.html", das=das)
+        annee, projet = filtre_courant()
+        lignes = []
+        for da in (DemandeAchat.query
+                   .order_by(DemandeAchat.reference.is_(None), DemandeAchat.reference)):
+            postes = [p for p in da.postes if garder_poste_da(p, annee, projet)]
+            if not postes and da.postes:
+                continue  # DA dont aucun poste ne correspond au filtre (une DA vide reste visible)
+            comptes = [p for p in postes if p.statut != "supprimé"]
+            lignes.append({"da": da, "postes": postes,
+                           "valeur": sum(p.montant or 0 for p in comptes),
+                           "impute": sum(p.impute for p in comptes),
+                           "disponible": sum(p.disponible for p in comptes)})
+        return render_template("da_liste.html", lignes=lignes)
 
     @app.route("/da/nouvelle", methods=["GET", "POST"])
     @app.route("/da/<int:da_id>/modifier", methods=["GET", "POST"])
@@ -330,7 +385,9 @@ def enregistrer_routes(app):
 
     @app.route("/postes-da")
     def postes_da():
-        return render_template("postes_da.html", postes=tous_les_postes_da())
+        annee, projet = filtre_courant()
+        return render_template("postes_da.html", postes=[
+            p for p in tous_les_postes_da() if garder_poste_da(p, annee, projet)])
 
     # --- Bons de commande -----------------------------------------------------
 
@@ -342,7 +399,10 @@ def enregistrer_routes(app):
     @app.route("/commandes")
     def liste_commandes():
         # BdC en attente de numéro en tête
-        cmds = Commande.query.order_by(Commande.reference.isnot(None), Commande.reference).all()
+        annee, projet = filtre_courant()
+        cmds = [c for c in Commande.query.order_by(Commande.reference.isnot(None),
+                                                   Commande.reference)
+                if not c.postes or any(garder_poste_cmd(p, annee, projet) for p in c.postes)]
         return render_template("cmd_liste.html", cmds=cmds, saisie={},
                                **contexte_nouveau_bdc())
 
@@ -503,7 +563,9 @@ def enregistrer_routes(app):
         postes = (PosteCommande.query.join(Commande)
                   .order_by(Commande.reference.isnot(None), Commande.reference,
                             PosteCommande.numero).all())
-        return render_template("postes_cmd.html", postes=postes)
+        annee, projet = filtre_courant()
+        return render_template("postes_cmd.html", postes=[
+            p for p in postes if garder_poste_cmd(p, annee, projet)])
 
     # --- Marchés ---------------------------------------------------------------
 

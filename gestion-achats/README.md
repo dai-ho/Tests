@@ -33,6 +33,9 @@ Reprend la structure du fichier **Budgets GT** (onglets « Suivi DA » et « Sui
   ne peut pas dépasser son montant maximal (contrôle à la saisie, jauge de consommation). Le lot est choisi
   à chaque commande parmi ceux du marché. Un marché **simplifié** n'accepte qu'une seule commande.
 - **Suivi DA / Suivi BdC** : vues tableur avec filtre instantané et tri par colonne.
+- **Filtre année / projet** (bandeau sous le menu) sur le tableau de bord, les DA, le Suivi DA, les BdC et le
+  Suivi BdC ; l'année en cours est sélectionnée par défaut. Un poste de BdC prend l'année et le projet de son
+  poste de DA. Les marchés, pluriannuels, ne sont pas filtrés.
 - **Tableau de bord** : synthèse Valeur / Imputé / Disponible par projet et année, échéances dépassées sans
   CSF, postes de DA sans BdC, dépassements.
 - **Couleurs des lignes** : mêmes règles et mêmes teintes que la mise en forme conditionnelle du fichier

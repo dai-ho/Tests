@@ -9,7 +9,7 @@
 </head>
 <body>
 {% set page = request.endpoint %}
-<nav class="navbar navbar-expand navbar-dark bg-primary mb-4">
+<nav class="navbar navbar-expand navbar-dark bg-primary {{ 'mb-4' if not filtre_actif }}">
   <div class="container-fluid">
     <a class="navbar-brand" href="{{ url_for('accueil') }}">Budgets DA / BdC</a>
     <ul class="navbar-nav me-auto">
@@ -26,6 +26,26 @@
     </ul>
   </div>
 </nav>
+{% if filtre_actif %}
+<form action="{{ url_for('filtrer') }}" class="bandeau-filtre d-flex flex-wrap align-items-center gap-3 px-4 py-2 mb-3">
+  <input type="hidden" name="retour" value="{{ request.full_path }}">
+  <strong class="small text-muted">Filtre</strong>
+  <label class="d-flex align-items-center gap-2 small">Année
+    <select name="annee" class="form-select form-select-sm" onchange="this.form.submit()">
+      <option value="" {{ 'selected' if filtre_annee is none }}>Toutes</option>
+      {% for a in filtre_annees %}<option value="{{ a }}" {{ 'selected' if filtre_annee == a }}>{{ a }}</option>{% endfor %}
+    </select></label>
+  <label class="d-flex align-items-center gap-2 small">Projet
+    <select name="projet" class="form-select form-select-sm" onchange="this.form.submit()">
+      <option value="" {{ 'selected' if not filtre_projet }}>Tous</option>
+      {% for p in filtre_projets %}<option {{ 'selected' if filtre_projet == p }}>{{ p }}</option>{% endfor %}
+    </select></label>
+  {% if filtre_annee != aujourdhui.year or filtre_projet %}
+    <a class="small" href="{{ url_for('filtrer', annee=aujourdhui.year, retour=request.full_path) }}">Réinitialiser ({{ aujourdhui.year }}, tous projets)</a>
+  {% endif %}
+  <noscript><button class="btn btn-sm btn-outline-primary">Appliquer</button></noscript>
+</form>
+{% endif %}
 <main class="container-fluid px-4">
   {% for categorie, message in get_flashed_messages(with_categories=true) %}
     <div class="alert alert-{{ categorie }}">{{ message }}</div>
