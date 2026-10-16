@@ -1,14 +1,15 @@
 {% extends "base.html" %}
-{% block titre %}{{ 'DA ' ~ da.reference if da.id else 'Nouvelle DA' }}{% endblock %}
+{% block titre %}{{ da.libelle if da.id else 'Nouvelle DA' }}{% endblock %}
 {% block contenu %}
-<h3>{{ 'Modifier la DA ' ~ da.reference if da.id else 'Nouvelle demande d\'achat' }}</h3>
+<h3>{{ 'Modifier ' ~ da.libelle if da.id else 'Nouvelle demande d\'achat' }}</h3>
 <form method="post" class="card card-body" style="max-width: 40rem">
-  <div class="mb-3"><label class="form-label">Numéro de référence *</label>
-    <input name="reference" class="form-control" required autofocus value="{{ da.reference or '' }}"></div>
+  <div class="mb-3"><label class="form-label">N° de DA</label>
+    <input name="reference" class="form-control" autofocus value="{{ da.reference or '' }}">
+    <div class="form-text">Laisser vide si le numéro n'est pas encore attribué : il pourra être saisi plus tard.</div></div>
   <div class="mb-3"><label class="form-label">Commentaire</label>
     <textarea name="commentaire" class="form-control" rows="3">{{ da.commentaire or '' }}</textarea></div>
   <div class="d-flex gap-2">
-    <button class="btn btn-primary">Enregistrer</button>
+    <button class="btn btn-primary">{{ 'Enregistrer' if da.id else 'Créer et saisir le premier poste' }}</button>
     <a class="btn btn-outline-secondary" href="{{ url_for('detail_da', da_id=da.id) if da.id else url_for('liste_da') }}">Annuler</a>
   </div>
 </form>

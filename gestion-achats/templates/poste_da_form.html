@@ -1,25 +1,45 @@
 {% extends "base.html" %}
 {% block titre %}Poste DA{% endblock %}
 {% block contenu %}
-<a href="{{ url_for('detail_da', da_id=da.id) }}" class="small">← DA {{ da.reference }}</a>
-<h3>{{ 'Modifier le poste ' ~ poste.numero if poste.id else 'Nouveau poste' }} – DA {{ da.reference }}</h3>
-<form method="post" class="card card-body" style="max-width: 50rem">
+<a href="{{ url_for('detail_da', da_id=da.id) }}" class="small">← {{ da.libelle }}</a>
+<h3>{{ 'Modifier le poste ' ~ poste.numero if poste.id else 'Nouveau poste' }} – {{ da.libelle }}</h3>
+<form method="post" class="card card-body" style="max-width: 55rem">
   <div class="row g-3">
-    <div class="col-md-3"><label class="form-label">Poste *</label>
+    <div class="col-md-2"><label class="form-label">Poste *</label>
       <input name="numero" type="number" class="form-control" required value="{{ poste.numero or '' }}"></div>
-    <div class="col-md-9"><label class="form-label">Nom *</label>
-      <input name="nom" class="form-control" required autofocus value="{{ poste.nom or '' }}"></div>
-    <div class="col-md-4"><label class="form-label">Montant (€)</label>
-      <input name="montant" class="form-control" inputmode="decimal" value="{{ poste.montant if poste.montant is not none else '' }}"></div>
-    <div class="col-md-4"><label class="form-label">Date de livraison</label>
-      <input name="date_livraison" type="date" class="form-control" value="{{ poste.date_livraison or '' }}"></div>
-    <div class="col-md-4"><label class="form-label">Code d'imputation</label>
-      <input name="code_imputation" class="form-control" placeholder="ex. 23T_0531" value="{{ poste.code_imputation or '' }}"></div>
-    <div class="col-md-6"><label class="form-label">Demandeur</label>
-      <input name="demandeur" class="form-control" value="{{ poste.demandeur or '' }}"></div>
-    <div class="col-md-6"><label class="form-label">Certificateur</label>
-      <input name="certificateur" class="form-control" value="{{ poste.certificateur or '' }}"></div>
+    <div class="col-md-2"><label class="form-label">Année</label>
+      <input name="annee" type="number" class="form-control" value="{{ poste.annee or '' }}"></div>
+    <div class="col-md-4"><label class="form-label">Projet</label>
+      <input name="projet" class="form-control" list="liste-projets" value="{{ poste.projet or '' }}">
+      <datalist id="liste-projets">{% for v in projets %}<option value="{{ v }}">{% endfor %}</datalist></div>
+    <div class="col-md-4"><label class="form-label">Statut</label>
+      <select name="statut" class="form-select">
+        {% for s in statuts %}<option value="{{ s }}" {{ 'selected' if (poste.statut or '') == s }}>{{ s or 'en cours' }}</option>{% endfor %}
+      </select></div>
+    <div class="col-12"><label class="form-label">Désignation *</label>
+      <input name="nom" class="form-control" required autofocus value="{{ poste.nom or '' }}">
+      <div class="form-text">C'est par la désignation que les postes de BdC sont rattachés à ce poste lors de l'import Excel : gardez-la unique.</div></div>
+    <div class="col-md-4"><label class="form-label">Valeur (€)</label>
+      <input name="montant" class="form-control" inputmode="decimal" value="{{ poste.montant|saisie }}"></div>
+    <div class="col-md-4"><label class="form-label">Centre de coût</label>
+      <input name="code_imputation" class="form-control" list="liste-centres" placeholder="ex. 23T_0531" value="{{ poste.code_imputation or '' }}">
+      <datalist id="liste-centres">{% for v in centres %}<option value="{{ v }}">{% endfor %}</datalist></div>
+    <div class="col-md-4"><label class="form-label">Budget (€)</label>
+      <input name="budget" class="form-control" inputmode="decimal" value="{{ poste.budget|saisie }}"></div>
+    <div class="col-12"><label class="form-label">Remarque</label>
+      <textarea name="remarque" class="form-control" rows="2">{{ poste.remarque or '' }}</textarea></div>
   </div>
+  <details class="mt-3" {{ 'open' if poste.date_livraison or poste.demandeur or poste.certificateur }}>
+    <summary class="text-muted">Autres informations (date de livraison, demandeur, certificateur)</summary>
+    <div class="row g-3 mt-1">
+      <div class="col-md-4"><label class="form-label">Date de livraison</label>
+        <input name="date_livraison" type="date" class="form-control" value="{{ poste.date_livraison or '' }}"></div>
+      <div class="col-md-4"><label class="form-label">Demandeur</label>
+        <input name="demandeur" class="form-control" value="{{ poste.demandeur or '' }}"></div>
+      <div class="col-md-4"><label class="form-label">Certificateur</label>
+        <input name="certificateur" class="form-control" value="{{ poste.certificateur or '' }}"></div>
+    </div>
+  </details>
   <div class="d-flex gap-2 mt-4">
     <button class="btn btn-primary">Enregistrer</button>
     {% if not poste.id %}<button class="btn btn-outline-primary" name="continuer" value="1">Enregistrer et ajouter un autre poste</button>{% endif %}

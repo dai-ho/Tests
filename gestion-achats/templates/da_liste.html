@@ -6,27 +6,25 @@
   <h3 class="mb-0">Demandes d'achat</h3>
   <a class="btn btn-primary" href="{{ url_for('form_da') }}">+ Nouvelle DA</a>
 </div>
-{{ macros.filtre("table-da") }}
+{{ macros.filtre("table-da", "Filtrer : n° DA, projet, année, centre de coût…") }}
 <div class="table-responsive"><table class="table table-hover" id="table-da">
   <thead><tr>
-    <th data-tri>Référence</th><th data-tri class="num">Postes</th><th data-tri class="num">Montant total</th>
-    <th data-tri>Imputations</th><th data-tri>Demandeurs</th><th data-tri>Certificateurs</th>
-    <th data-tri class="num">Postes commandés</th><th></th>
+    <th data-tri>DA</th><th data-tri>Projet(s)</th><th data-tri>Année(s)</th><th data-tri>Centre(s) de coût</th>
+    <th data-tri class="num">Postes</th><th data-tri class="num">Valeur</th><th data-tri class="num">Imputé</th>
+    <th data-tri class="num">Disponible</th><th></th>
   </tr></thead>
   <tbody>
   {% for da in das %}
-    {% set commandes = da.postes|selectattr('postes_commande')|list %}
-    <tr>
-      <td><a href="{{ url_for('detail_da', da_id=da.id) }}"><strong>{{ da.reference }}</strong></a></td>
-      <td class="num">{{ da.postes|length }}</td>
-      <td class="num" data-valeur="{{ da.montant_total }}">{{ da.montant_total|euros }}</td>
+    <tr style="{{ '--bs-table-bg: #DBEEF4' if not da.reference }}">
+      <td><a href="{{ url_for('detail_da', da_id=da.id) }}"><strong>{{ da.libelle }}</strong></a></td>
+      <td>{{ da.postes|map(attribute='projet')|select|unique|join(', ') }}</td>
+      <td>{{ da.postes|map(attribute='annee')|select|unique|sort|join(', ') }}</td>
       <td>{{ da.postes|map(attribute='code_imputation')|select|unique|join(', ') }}</td>
-      <td>{{ da.postes|map(attribute='demandeur')|select|unique|join(', ') }}</td>
-      <td>{{ da.postes|map(attribute='certificateur')|select|unique|join(', ') }}</td>
-      <td class="num">{{ commandes|length }} / {{ da.postes|length }}</td>
+      <td class="num">{{ da.postes|length }}</td>
+      {{ macros.montant(da.montant_total) }}{{ macros.montant(da.impute_total) }}{{ macros.montant(da.disponible_total, true) }}
       <td class="actions"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('detail_da', da_id=da.id) }}">Ouvrir</a></td>
     </tr>
-  {% else %}<tr><td colspan="8" class="text-muted">Aucune DA. Créez-en une ou importez votre fichier Excel.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="9" class="text-muted">Aucune DA. Créez-en une ou importez votre fichier Excel.</td></tr>{% endfor %}
   </tbody>
 </table></div>
 {% endblock %}

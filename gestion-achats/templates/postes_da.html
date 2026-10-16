@@ -1,25 +1,25 @@
 {% extends "base.html" %}
 {% import "_macros.html" as macros %}
-{% block titre %}Postes DA{% endblock %}
+{% block titre %}Suivi DA{% endblock %}
 {% block contenu %}
-<h3>Tous les postes de DA</h3>
-{{ macros.filtre("table-postes-da", "Filtrer : référence, imputation, demandeur…") }}
-{{ macros.legende_da() }}
+<h3>Suivi DA <small class="text-muted fs-6">tous les postes de DA</small></h3>
+{{ macros.filtre("table-postes-da", "Filtrer : année, projet, DA, désignation, centre de coût, statut…") }}
+{{ macros.legende(couleurs_da) }}
 <div class="table-responsive"><table class="table table-sm table-hover" id="table-postes-da">
   <thead><tr>
-    <th data-tri>DA</th><th data-tri>Poste</th><th data-tri>Nom</th><th data-tri class="num">Montant</th>
-    <th data-tri>Livraison</th><th data-tri>Imputation</th><th data-tri>Demandeur</th><th data-tri>Certificateur</th>
-    <th data-tri>Commandes</th><th></th>
+    <th data-tri>Année</th><th data-tri>Projet</th><th data-tri>DA</th><th data-tri>Poste</th><th data-tri>Désignation</th>
+    <th data-tri class="num">Valeur</th><th data-tri>Centre de coût</th><th data-tri class="num">Imputé</th>
+    <th data-tri class="num">Disponible</th><th data-tri>Statut</th><th data-tri>Remarque</th><th></th>
   </tr></thead>
   <tbody>
   {% for p in postes %}
-    <tr class="{{ couleur_da(p) }}">
-      <td><a href="{{ url_for('detail_da', da_id=p.da_id) }}">{{ p.da.reference }}</a></td>
+    <tr style="{{ style_da(p) }}">
+      <td>{{ p.annee or '' }}</td><td>{{ p.projet or '' }}</td>
+      <td><a href="{{ url_for('detail_da', da_id=p.da_id) }}">{{ p.da.reference or 'sans n°' }}</a></td>
       <td>{{ p.numero }}</td><td>{{ p.nom }}</td>
-      <td class="num" data-valeur="{{ p.montant or 0 }}">{{ p.montant|euros }}</td>
-      <td data-valeur="{{ p.date_livraison or '' }}">{{ p.date_livraison|date_fr }}</td>
-      <td>{{ p.code_imputation or '' }}</td><td>{{ p.demandeur or '' }}</td><td>{{ p.certificateur or '' }}</td>
-      <td>{% for pc in p.postes_commande %}<a href="{{ url_for('detail_commande', cmd_id=pc.commande_id) }}">{{ pc.commande.reference }}/{{ pc.numero }}</a>{% if pc.csf %} ✔{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+      {{ macros.montant(p.montant) }}<td>{{ p.code_imputation or '' }}</td>
+      {{ macros.montant(p.impute) }}{{ macros.montant(p.disponible, true) }}
+      <td>{{ p.statut }}</td><td class="small">{{ p.remarque or '' }}</td>
       <td class="actions"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('form_poste_da', poste_id=p.id) }}">Modifier</a></td>
     </tr>
   {% endfor %}

@@ -16,15 +16,21 @@ Pour reprendre l'existant : menu **Importer Excel**, puis choisir le fichier act
 
 ## Fonctionnalités
 
-- **Demandes d'achat** : référence, postes (10, 20, 30…) avec nom, montant, date de livraison,
-  code d'imputation, demandeur, certificateur. Un nouveau poste reprend l'imputation, le demandeur et le
-  certificateur du poste précédent.
-- **Commandes** : référence, postes rattachés chacun à un poste de DA (de n'importe quelle DA), nom,
-  CSF fait / non fait (bouton cliquable), référence du livrable, PTF, date de livraison.
-- **Vues « Tous les postes »** façon tableur : filtre texte instantané et tri en cliquant sur les en-têtes.
-- **Tableau de bord** : postes en retard de certification, postes de DA pas encore commandés.
-- **Mise en couleur des lignes** : règles provisoires dans `regles.py`, à adapter.
-- **Import / export Excel** : l'export produit un fichier réimportable, utilisable aussi comme sauvegarde.
+Reprend la structure du fichier **Budgets GT** (onglets « Suivi DA » et « Suivi BdC ») :
+
+- **Demandes d'achat** : n° de DA (peut rester vide tant qu'il n'est pas attribué), postes avec année, projet,
+  désignation, valeur, centre de coût, budget, statut (en cours / clos / supprimé), remarque.
+  **Imputé** (somme des postes de BdC rattachés) et **Disponible** sont calculés automatiquement.
+- **Bons de commande** : n° BDC/Marché, société, postes avec activité, désignation, montant, échéance, PAF,
+  CSF et CR pour CSF (ce dernier n'apparaît que lorsque la CSF est cochée). Chaque poste est rattaché à un
+  poste de DA, choisi dans une liste qui affiche le disponible restant.
+- **Suivi DA / Suivi BdC** : vues tableur avec filtre instantané et tri par colonne.
+- **Tableau de bord** : synthèse Valeur / Imputé / Disponible par projet et année, échéances dépassées sans
+  CSF, postes de DA sans BdC, dépassements.
+- **Planning** : montants des postes de BdC par activité et par mois d'échéance.
+- **Couleurs des lignes** : mêmes règles et mêmes teintes que la mise en forme conditionnelle du fichier
+  Excel, regroupées dans `regles.py`.
+- **Import / export Excel** au format du fichier Budgets GT (l'export est réimportable).
 
 ## Données
 
@@ -36,7 +42,7 @@ dans `donnees/sauvegardes/`.
 | Fichier | Rôle |
 |---|---|
 | `app.py` | Application Flask : pages et formulaires |
-| `models.py` | Modèle de données (DA, postes DA, commandes, postes commande) |
+| `models.py` | Modèle de données (DA, postes DA, BdC, postes BdC) |
 | `regles.py` | Règles de couleur des lignes |
 | `excel_io.py` | Import / export Excel, en-têtes de colonnes reconnus |
 | `templates/` | Pages HTML (Jinja2 + Bootstrap) |

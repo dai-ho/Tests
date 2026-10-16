@@ -14,27 +14,26 @@
 {% macro badge_csf(poste) %}
 {% if poste.csf %}
 <form method="post" action="{{ url_for('annuler_csf', poste_id=poste.id) }}" class="d-inline"
-      data-confirmer="Annuler la CSF du poste {{ poste.numero }} ? La référence du livrable sera effacée.">
-  <button class="btn btn-sm btn-success" title="Cliquer pour annuler la CSF">Fait</button>
+      data-confirmer="Annuler la CSF du poste {{ poste.numero }} ? Le CR pour CSF sera effacé.">
+  <button class="btn btn-sm btn-success" title="Cliquer pour annuler la CSF">OK</button>
 </form>
 {% else %}
-<a class="btn btn-sm btn-outline-secondary" title="Saisir la CSF et la référence du livrable"
+<a class="btn btn-sm btn-outline-secondary" title="Saisir la CSF et le CR pour CSF"
    href="{{ url_for('form_poste_commande', poste_id=poste.id, csf=1) }}">À faire</a>
 {% endif %}
 {% endmacro %}
 
-{% macro legende_da() %}
+{% macro legende(couleurs) %}
 <div class="legende small text-muted my-2">
-  <span class="bg-success-subtle border">tous les postes de commande certifiés</span>
-  <span class="bg-info-subtle border">commandé, certification en cours</span>
-  <span class="bg-danger-subtle border">non commandé, date de livraison dépassée</span>
+  {% for cle, valeur in couleurs.items() %}<span class="border" style="background: {{ valeur[0] }}">{{ valeur[1] }}</span>{% endfor %}
 </div>
 {% endmacro %}
 
-{% macro legende_cmd() %}
-<div class="legende small text-muted my-2">
-  <span class="bg-success-subtle border">CSF fait</span>
-  <span class="bg-danger-subtle border">livraison dépassée sans CSF</span>
-  <span class="bg-warning-subtle border">CSF faite sans référence de livrable</span>
-</div>
+{% macro lien_da(poste_da) %}
+{% if poste_da %}<a href="{{ url_for('detail_da', da_id=poste_da.da_id) }}" title="{{ poste_da.cle }}">{{ poste_da.nom }}</a>
+<div class="small text-muted">{{ poste_da.cle }}</div>{% endif %}
+{% endmacro %}
+
+{% macro montant(v, alerte_negatif=false) %}
+<td class="num {{ 'text-danger fw-bold' if alerte_negatif and v is not none and v < 0 }}" data-valeur="{{ v if v is not none else '' }}">{{ v|euros }}</td>
 {% endmacro %}

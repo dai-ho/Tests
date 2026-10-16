@@ -2,47 +2,69 @@
 {% import "_macros.html" as macros %}
 {% block titre %}Tableau de bord{% endblock %}
 {% block contenu %}
-<div class="row g-3 mb-4">
-  <div class="col-md-3"><div class="card carte-stat"><div class="card-body">
-    <div class="text-muted">Demandes d'achat</div><div class="valeur">{{ nb_da }}</div></div></div></div>
-  <div class="col-md-3"><div class="card carte-stat"><div class="card-body">
-    <div class="text-muted">Montant total DA</div><div class="valeur">{{ montant_total|euros }}</div></div></div></div>
-  <div class="col-md-3"><div class="card carte-stat"><div class="card-body">
-    <div class="text-muted">Commandes</div><div class="valeur">{{ nb_cmd }}</div></div></div></div>
-  <div class="col-md-3"><div class="card carte-stat"><div class="card-body">
-    <div class="text-muted">Postes à certifier</div><div class="valeur">{{ a_certifier|length }}
-      {% if en_retard %}<small class="text-danger fs-6">dont {{ en_retard|length }} en retard</small>{% endif %}</div></div></div></div>
-</div>
+<h4>Synthèse budgétaire <small class="text-muted fs-6">(hors postes supprimés)</small></h4>
+<div class="table-responsive mb-4"><table class="table table-sm table-hover">
+  <thead><tr><th>Projet</th><th>Année</th><th class="num">Postes</th><th class="num">Valeur</th>
+    <th class="num">Imputé</th><th class="num">Disponible</th><th class="num">% imputé</th></tr></thead>
+  <tbody>
+  {% for (projet, annee), t in synthese %}
+    <tr>
+      <td>{{ projet }}</td><td>{{ annee or '' }}</td><td class="num">{{ t.nb }}</td>
+      {{ macros.montant(t.valeur) }}{{ macros.montant(t.impute) }}{{ macros.montant(t.disponible, true) }}
+      <td class="num">{{ ((t.impute / t.valeur * 100)|round|int) ~ ' %' if t.valeur else '' }}</td>
+    </tr>
+  {% else %}<tr><td colspan="7" class="text-muted">Aucune donnée : commencez par <a href="{{ url_for('import_excel') }}">importer votre fichier Excel</a>.</td></tr>{% endfor %}
+  </tbody>
+  {% if synthese %}
+  {% set tv = synthese|map(attribute='1.valeur')|sum %}{% set ti = synthese|map(attribute='1.impute')|sum %}
+  <tfoot class="fw-bold"><tr><td colspan="2">Total</td><td class="num">{{ synthese|map(attribute='1.nb')|sum }}</td>
+    {{ macros.montant(tv) }}{{ macros.montant(ti) }}{{ macros.montant(synthese|map(attribute='1.disponible')|sum, true) }}
+    <td class="num">{{ ((ti / tv * 100)|round|int) ~ ' %' if tv else '' }}</td></tr></tfoot>
+  {% endif %}
+</table></div>
 
 <div class="row g-4">
-  <div class="col-lg-6">
-    <h5>Postes de commande en retard (livraison dépassée, CSF non fait)</h5>
+  <div class="col-xl-6">
+    <h5>Échéances dépassées sans CSF <span class="badge bg-warning text-dark">{{ en_retard|length }}</span></h5>
     <div class="table-responsive"><table class="table table-sm table-hover">
-      <thead><tr><th>Commande</th><th>Poste</th><th>Nom</th><th>Livraison</th><th>Certificateur</th><th>CSF</th></tr></thead>
+      <thead><tr><th>BdC</th><th>Poste</th><th>Désignation</th><th class="num">Montant</th><th>Échéance</th><th>CSF</th></tr></thead>
       <tbody>
-      {% for p in en_retard|sort(attribute='date_livraison') %}
-        <tr class="table-danger">
+      {% for p in en_retard %}
+        <tr style="{{ style_cmd(p) }}">
           <td><a href="{{ url_for('detail_commande', cmd_id=p.commande_id) }}">{{ p.commande.reference }}</a></td>
-          <td>{{ p.numero }}</td><td>{{ p.nom }}</td><td>{{ p.date_livraison|date_fr }}</td>
-          <td>{{ p.poste_da.certificateur if p.poste_da }}</td>
-          <td>{{ macros.badge_csf(p) }}</td>
+          <td>{{ p.numero }}</td><td>{{ p.nom }}</td>{{ macros.montant(p.montant) }}
+          <td>{{ p.date_livraison|date_fr }}</td><td>{{ macros.badge_csf(p) }}</td>
         </tr>
-      {% else %}<tr><td colspan="6" class="text-muted">Aucun.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="6" class="text-muted">Aucune.</td></tr>{% endfor %}
       </tbody></table></div>
   </div>
-  <div class="col-lg-6">
-    <h5>Postes de DA sans commande</h5>
+  <div class="col-xl-6">
+    <h5>Postes de DA actifs sans BdC <span class="badge bg-warning text-dark">{{ non_imputes|length }}</span></h5>
     <div class="table-responsive"><table class="table table-sm table-hover">
-      <thead><tr><th>DA</th><th>Poste</th><th>Nom</th><th class="num">Montant</th><th>Livraison</th></tr></thead>
+      <thead><tr><th>Année</th><th>Projet</th><th>DA@poste</th><th>Désignation</th><th class="num">Valeur</th></tr></thead>
       <tbody>
-      {% for p in da_sans_commande %}
-        <tr class="{{ couleur_da(p) }}">
-          <td><a href="{{ url_for('detail_da', da_id=p.da_id) }}">{{ p.da.reference }}</a></td>
-          <td>{{ p.numero }}</td><td>{{ p.nom }}</td><td class="num">{{ p.montant|euros }}</td>
-          <td>{{ p.date_livraison|date_fr }}</td>
+      {% for p in non_imputes %}
+        <tr style="{{ style_da(p) }}">
+          <td>{{ p.annee or '' }}</td><td>{{ p.projet or '' }}</td>
+          <td><a href="{{ url_for('detail_da', da_id=p.da_id) }}">{{ p.cle }}</a></td>
+          <td>{{ p.nom }}</td>{{ macros.montant(p.montant) }}
         </tr>
-      {% else %}<tr><td colspan="6" class="text-muted">Aucun.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="5" class="text-muted">Aucun.</td></tr>{% endfor %}
       </tbody></table></div>
+
+    {% if depassements %}
+    <h5 class="mt-4">Dépassements (disponible négatif) <span class="badge bg-danger">{{ depassements|length }}</span></h5>
+    <div class="table-responsive"><table class="table table-sm table-hover">
+      <thead><tr><th>DA@poste</th><th>Désignation</th><th class="num">Valeur</th><th class="num">Imputé</th><th class="num">Disponible</th></tr></thead>
+      <tbody>
+      {% for p in depassements %}
+        <tr>
+          <td><a href="{{ url_for('detail_da', da_id=p.da_id) }}">{{ p.cle }}</a></td><td>{{ p.nom }}</td>
+          {{ macros.montant(p.montant) }}{{ macros.montant(p.impute) }}{{ macros.montant(p.disponible, true) }}
+        </tr>
+      {% endfor %}
+      </tbody></table></div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

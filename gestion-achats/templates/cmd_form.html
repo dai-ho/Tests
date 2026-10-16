@@ -1,14 +1,17 @@
 {% extends "base.html" %}
-{% block titre %}{{ 'Commande ' ~ cmd.reference if cmd.id else 'Nouvelle commande' }}{% endblock %}
+{% block titre %}{{ 'BdC ' ~ cmd.reference if cmd.id else 'Nouveau BdC' }}{% endblock %}
 {% block contenu %}
-<h3>{{ 'Modifier la commande ' ~ cmd.reference if cmd.id else 'Nouvelle commande' }}</h3>
+<h3>{{ 'Modifier le BdC ' ~ cmd.reference if cmd.id else 'Nouveau bon de commande / marché' }}</h3>
 <form method="post" class="card card-body" style="max-width: 40rem">
-  <div class="mb-3"><label class="form-label">Numéro de référence *</label>
+  <div class="mb-3"><label class="form-label">N° BDC / Marché *</label>
     <input name="reference" class="form-control" required autofocus value="{{ cmd.reference or '' }}"></div>
+  <div class="mb-3"><label class="form-label">Société</label>
+    <input name="societe" class="form-control" list="liste-societes" value="{{ cmd.societe or '' }}">
+    <datalist id="liste-societes">{% for v in societes %}<option value="{{ v }}">{% endfor %}</datalist></div>
   <div class="mb-3"><label class="form-label">Commentaire</label>
     <textarea name="commentaire" class="form-control" rows="3">{{ cmd.commentaire or '' }}</textarea></div>
   <div class="d-flex gap-2">
-    <button class="btn btn-primary">Enregistrer</button>
+    <button class="btn btn-primary">{{ 'Enregistrer' if cmd.id else 'Créer et saisir le premier poste' }}</button>
     <a class="btn btn-outline-secondary" href="{{ url_for('detail_commande', cmd_id=cmd.id) if cmd.id else url_for('liste_commandes') }}">Annuler</a>
   </div>
 </form>

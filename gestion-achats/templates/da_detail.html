@@ -1,37 +1,40 @@
 {% extends "base.html" %}
 {% import "_macros.html" as macros %}
-{% block titre %}DA {{ da.reference }}{% endblock %}
+{% block titre %}{{ da.libelle }}{% endblock %}
 {% block contenu %}
 <div class="d-flex justify-content-between align-items-start mb-3">
   <div>
     <a href="{{ url_for('liste_da') }}" class="small">← Demandes d'achat</a>
-    <h3 class="mb-0">DA {{ da.reference }}</h3>
-    <div class="text-muted">{{ da.postes|length }} poste(s) – total {{ da.montant_total|euros }}</div>
+    <h3 class="mb-0">{{ 'DA ' ~ da.reference if da.reference else da.libelle }}</h3>
+    <div class="text-muted">{{ da.postes|length }} poste(s) – valeur {{ da.montant_total|euros }} – imputé {{ da.impute_total|euros }}
+      – disponible <span class="{{ 'text-danger fw-bold' if da.disponible_total < 0 }}">{{ da.disponible_total|euros }}</span></div>
     {% if da.commentaire %}<p class="mt-2 mb-0">{{ da.commentaire }}</p>{% endif %}
   </div>
   <div class="d-flex gap-2">
     <a class="btn btn-primary" href="{{ url_for('form_poste_da', da_id=da.id) }}">+ Ajouter un poste</a>
-    <a class="btn btn-outline-secondary" href="{{ url_for('form_da', da_id=da.id) }}">Modifier</a>
-    <form method="post" action="{{ url_for('supprimer_da', da_id=da.id) }}" data-confirmer="Supprimer la DA {{ da.reference }} et tous ses postes ?">
+    <a class="btn btn-outline-secondary" href="{{ url_for('form_da', da_id=da.id) }}">{{ 'Modifier' if da.reference else 'Saisir le n° de DA' }}</a>
+    <form method="post" action="{{ url_for('supprimer_da', da_id=da.id) }}" data-confirmer="Supprimer {{ da.libelle }} et tous ses postes ?">
       <button class="btn btn-outline-danger">Supprimer</button></form>
   </div>
 </div>
-{{ macros.legende_da() }}
+{{ macros.legende(couleurs_da) }}
 <div class="table-responsive"><table class="table table-hover align-middle">
   <thead><tr>
-    <th>Poste</th><th>Nom</th><th class="num">Montant</th><th>Livraison</th><th>Imputation</th>
-    <th>Demandeur</th><th>Certificateur</th><th>Commandes liées</th><th></th>
+    <th>Poste</th><th>Année</th><th>Projet</th><th>Désignation</th><th class="num">Valeur</th><th>Centre de coût</th>
+    <th class="num">Imputé</th><th class="num">Disponible</th><th>Statut</th><th>Postes de BdC</th><th></th>
   </tr></thead>
   <tbody>
   {% for p in da.postes %}
-    <tr class="{{ couleur_da(p) }}">
-      <td>{{ p.numero }}</td><td>{{ p.nom }}</td><td class="num">{{ p.montant|euros }}</td>
-      <td>{{ p.date_livraison|date_fr }}</td><td>{{ p.code_imputation or '' }}</td>
-      <td>{{ p.demandeur or '' }}</td><td>{{ p.certificateur or '' }}</td>
-      <td>
+    <tr style="{{ style_da(p) }}">
+      <td>{{ p.numero }}</td><td>{{ p.annee or '' }}</td><td>{{ p.projet or '' }}</td>
+      <td>{{ p.nom }}{% if p.remarque %}<div class="small text-muted">{{ p.remarque }}</div>{% endif %}</td>
+      {{ macros.montant(p.montant) }}<td>{{ p.code_imputation or '' }}</td>
+      {{ macros.montant(p.impute) }}{{ macros.montant(p.disponible, true) }}
+      <td>{{ p.statut }}</td>
+      <td class="small">
         {% for pc in p.postes_commande %}
           <a href="{{ url_for('detail_commande', cmd_id=pc.commande_id) }}">{{ pc.commande.reference }}/{{ pc.numero }}</a>
-          <span class="badge {{ 'bg-success' if pc.csf else 'bg-secondary' }}">{{ 'CSF' if pc.csf else 'non certifié' }}</span><br>
+          {{ pc.montant|euros }} <span class="badge {{ 'bg-success' if pc.csf else 'bg-secondary' }}">{{ 'CSF OK' if pc.csf else 'CSF à faire' }}</span><br>
         {% endfor %}
       </td>
       <td class="actions">
@@ -39,7 +42,7 @@
         {{ macros.bouton_supprimer(url_for('supprimer_poste_da', poste_id=p.id), 'Supprimer le poste ' ~ p.numero ~ ' ?') }}
       </td>
     </tr>
-  {% else %}<tr><td colspan="9" class="text-muted">Aucun poste.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="11" class="text-muted">Aucun poste.</td></tr>{% endfor %}
   </tbody>
 </table></div>
 {% endblock %}

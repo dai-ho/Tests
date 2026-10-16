@@ -16,19 +16,24 @@
 </form>
 
 <h5>Format attendu</h5>
-<p>Un onglet dont le nom contient <strong>« DA »</strong> ou <strong>« Demande »</strong>, et un onglet dont le nom contient
-<strong>« Commande »</strong>. Une ligne par poste. La ligne d'en-tête est détectée automatiquement
-(majuscules, accents et ponctuation ignorés). Si la référence n'est saisie que sur la première ligne
-(cellules fusionnées), elle est reprise pour les lignes suivantes.
-Astuce : un <a href="{{ url_for('export_excel') }}">export</a> donne un fichier exactement au bon format.</p>
+<p>Le format de votre fichier <strong>Budgets GT</strong> : un onglet <strong>« Suivi DA »</strong> et un onglet
+<strong>« Suivi BdC »</strong>, une ligne par poste. La ligne d'en-tête est détectée automatiquement
+(majuscules, accents et ponctuation ignorés). Les colonnes calculées (DA@poste, Imputé, Disponible…) sont
+recalculées par l'application.
+Un <a href="{{ url_for('export_excel') }}">export</a> produit un fichier au même format.</p>
+<ul class="small">
+  <li>Une ligne du Suivi DA sans n° de DA est importée comme « DA sans n° », à compléter plus tard.</li>
+  <li>Un poste de BdC est rattaché à son poste de DA par la colonne <strong>Imputation</strong> (désignation du poste
+    de DA, comme la RECHERCHEV du fichier), ou à défaut par <strong>DA@poste</strong>.</li>
+  <li>CSF : « OK » (ou Oui, X, Fait, 1) = faite. Le CR pour CSF n'est repris que si la CSF est faite.</li>
+  <li>Mode mise à jour : les lignes sont rapprochées par n° DA + poste et par n° BdC + poste ; les autres données sont conservées.</li>
+</ul>
 <div class="row">
-  {% for titre, colonnes in [("Onglet DA", colonnes_da), ("Onglet Commandes", colonnes_cmd)] %}
+  {% for titre, colonnes in [("Onglet Suivi DA", colonnes_da), ("Onglet Suivi BdC", colonnes_cmd)] %}
   <div class="col-lg-6"><h6>{{ titre }}</h6>
     <table class="table table-sm bg-white"><thead><tr><th>Colonne</th><th>En-têtes acceptés</th></tr></thead><tbody>
       {% for cle, noms in colonnes.items() %}<tr><td>{{ noms[0] }}</td><td class="small">{{ noms|join(' · ') }}</td></tr>{% endfor %}
     </tbody></table></div>
   {% endfor %}
 </div>
-<p class="small text-muted">CSF : « Oui », « X », « Fait », « OK », « 1 » ou case cochée = certifié. Dans l'onglet Commandes,
-le poste de DA associé est retrouvé grâce aux colonnes « N° DA » + « Poste DA » (importez les DA en même temps ou avant).</p>
 {% endblock %}
