@@ -11,6 +11,12 @@
   <div class="form-check mb-3">
     <input class="form-check-input" type="checkbox" name="vider" id="vider">
     <label class="form-check-label" for="vider">Vider la base avant l'import (sinon : mise à jour / ajout par référence + poste)</label>
+    <div class="form-text">Les marchés saisis dans l'application sont conservés, mais les BdC réimportés
+      ne leur sont plus rattachés : préférez la mise à jour.</div>
+  </div>
+  <div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" name="avec_marches" id="avec_marches">
+    <label class="form-check-label" for="avec_marches">Importer aussi l'onglet « Marchés » (fichier exporté par l'application)</label>
   </div>
   <div><button class="btn btn-primary">Importer</button></div>
 </form>
@@ -26,7 +32,9 @@ Un <a href="{{ url_for('export_excel') }}">export</a> produit un fichier au mêm
   <li>Un poste de BdC est rattaché à son poste de DA par la colonne <strong>Imputation</strong> (désignation du poste
     de DA, comme la RECHERCHEV du fichier), ou à défaut par <strong>DA@poste</strong>.</li>
   <li>CSF : « OK » (ou Oui, X, Fait, 1) = faite. Le CR pour CSF n'est repris que si la CSF est faite.</li>
-  <li>Onglet facultatif <strong>« Marchés »</strong> (créé par l'export). Un n° de marché inconnu cité dans le Suivi BdC crée un marché à compléter.</li>
+  <li>Seuls les onglets DA et BdC sont lus ; les autres onglets du classeur sont ignorés. L'onglet <strong>« Marchés »</strong>
+    créé par l'export n'est lu que si la case correspondante est cochée. Les marchés se saisissent sinon dans l'onglet
+    Marchés, où l'on rattache ensuite les BdC.</li>
   <li>Un poste de BdC sans n° de BdC est importé comme BdC « N° en attente ».</li>
   <li>Mode mise à jour : les lignes sont rapprochées par n° DA + poste et par n° BdC + poste ; les autres données sont conservées.</li>
 </ul>

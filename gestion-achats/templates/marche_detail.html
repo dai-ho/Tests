@@ -24,15 +24,76 @@
 <h5>Postes de BdC passés sur ce marché</h5>
 <div class="table-responsive"><table class="table table-hover align-middle">
   <thead><tr><th>BdC</th><th>Lot</th><th>Poste</th><th>Désignation</th><th>Société</th><th>Imputation (poste de DA)</th>
-    <th class="num">Montant</th><th>Échéance</th><th>CSF</th></tr></thead>
+    <th class="num">Montant</th><th>Échéance</th><th>CSF</th><th></th></tr></thead>
   <tbody>
   {% for c in m.commandes %}{% for p in c.postes %}
     <tr style="{{ style_cmd(p) }}">
       <td><a href="{{ url_for('detail_commande', cmd_id=c.id) }}">{{ c.libelle }}</a></td>
       <td>{{ c.lot or '' }}</td><td>{{ p.numero }}</td><td>{{ p.nom }}</td><td>{{ p.societe or '' }}</td><td>{{ macros.lien_da(p.poste_da) }}</td>
       {{ macros.montant(p.montant) }}<td>{{ p.date_livraison|date_fr }}</td><td>{{ macros.badge_csf(p) }}</td>
+      <td class="actions">{% if loop.first %}
+        <form method="post" action="{{ url_for('detacher_commande', marche_id=m.id, cmd_id=c.id) }}"
+              data-confirmer="Détacher le BdC {{ c.libelle }} de ce marché ?">
+          <button class="btn btn-sm btn-outline-secondary" title="Détacher le BdC de ce marché">Détacher</button></form>
+      {% endif %}</td>
     </tr>
-  {% endfor %}{% else %}<tr><td colspan="9" class="text-muted">Aucune commande sur ce marché.</td></tr>{% endfor %}
+  {% endfor %}{% else %}<tr><td colspan="10" class="text-muted">Aucune commande sur ce marché.</td></tr>{% endfor %}
   </tbody>
 </table></div>
+
+<h5 class="mt-4">Rattacher des BdC à ce marché</h5>
+{% if m.simplifie and m.commandes %}
+  <p class="text-muted">Marché simplifié : sa commande unique est déjà rattachée.</p>
+{% elif not candidats %}
+  <p class="text-muted">Tous les BdC sont déjà rattachés à un marché.</p>
+{% else %}
+<form method="post" action="{{ url_for('rattacher_commandes', marche_id=m.id) }}">
+  <p class="small text-muted mb-2">BdC sans marché{% if m.titulaire %} ; ceux dont la société est « {{ m.titulaire }} » sont en tête{% endif %}.
+    {% if m.simplifie %}Marché simplifié : une seule commande.{% endif %}</p>
+  {{ macros.filtre("table-candidats", "Filtrer : n° BdC, société, désignation…") }}
+  <div class="table-responsive" style="max-height: 28rem; overflow-y: auto"><table class="table table-sm table-hover align-middle" id="table-candidats">
+    <thead><tr><th></th><th data-tri>N° BdC</th><th data-tri>Société(s)</th><th data-tri>Désignation(s)</th>
+      <th data-tri class="num">Montant</th><th data-tri>Échéance</th></tr></thead>
+    <tbody>
+    {% for c in candidats %}
+      {% set echeances = c.postes|selectattr('date_livraison')|map(attribute='date_livraison')|list %}
+      <tr>
+        <td><input class="form-check-input" type="checkbox" name="cmd_id" value="{{ c.id }}" data-montant="{{ c.montant_total }}"
+                   id="cand-{{ c.id }}"></td>
+        <td><label for="cand-{{ c.id }}">{% if c.reference %}{{ c.reference }}{% else %}<em>N° en attente</em>{% endif %}</label></td>
+        <td>{{ c.societes|join(', ') }}</td>
+        <td class="small">{{ c.postes|map(attribute='nom')|join(' ; ') }}</td>
+        {{ macros.montant(c.montant_total) }}
+        <td data-valeur="{{ echeances|min if echeances else '' }}">{{ (echeances|min)|date_fr if echeances }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <div class="d-flex flex-wrap align-items-end gap-3 mt-3">
+    <div><label class="form-label" for="lot-rattachement">Lot</label>
+      <input name="lot" id="lot-rattachement" class="form-control" list="lots-marche" style="width: 14rem"
+             value="{{ m.liste_lots[0] if m.liste_lots|length == 1 }}">
+      <datalist id="lots-marche">{% for l in m.liste_lots %}<option value="{{ l }}">{% endfor %}</datalist></div>
+    <button class="btn btn-primary">Rattacher les BdC cochés</button>
+    <div id="total-selection" class="small"></div>
+  </div>
+</form>
+<script>
+  // Total des BdC cochés comparé au reste du marché
+  const restant = {{ m.restant if m.restant is not none else 'null' }};
+  const casesBdc = document.querySelectorAll('input[name="cmd_id"]');
+  const euros = (v) => v.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+  const majTotal = () => {
+    const choisis = Array.from(casesBdc).filter((c) => c.checked);
+    const total = choisis.reduce((s, c) => s + parseFloat(c.dataset.montant), 0);
+    const zone = document.getElementById("total-selection");
+    if (!choisis.length) { zone.textContent = ""; return; }
+    let texte = `${choisis.length} BdC coché(s) : ${euros(total)}`;
+    if (restant !== null) texte += ` — reste sur le marché après rattachement : ${euros(restant - total)}`;
+    zone.textContent = texte;
+    zone.className = "small " + (restant !== null && restant - total < 0 ? "text-danger fw-bold" : "text-muted");
+  };
+  casesBdc.forEach((c) => c.addEventListener("change", majTotal));
+</script>
+{% endif %}
 {% endblock %}

@@ -161,10 +161,11 @@ def _trouver_feuilles(wb):
     return feuille_da, feuille_cmd, feuille_marches
 
 
-def _vider():
+def _vider(avec_marches):
     PosteCommande.query.delete()
     Commande.query.delete()
-    Marche.query.delete()
+    if avec_marches:
+        Marche.query.delete()
     PosteDA.query.delete()
     DemandeAchat.query.delete()
     db.session.flush()
@@ -347,21 +348,27 @@ def _importer_cmd(feuille, erreurs):
     return nb
 
 
-def importer(fichier, vider=False):
-    """Importe un classeur. Renvoie (nb_postes_da, nb_postes_cmd, erreurs)."""
+def importer(fichier, vider=False, avec_marches=False):
+    """Importe un classeur : onglets DA et BdC, plus l'onglet Marchés si `avec_marches`
+    (fichier exporté par l'application). Les autres onglets sont ignorés.
+    Renvoie (nb_postes_da, nb_postes_cmd, erreurs, onglets importés)."""
     wb = load_workbook(fichier, data_only=True, read_only=True)
     feuille_da, feuille_cmd, feuille_marches = _trouver_feuilles(wb)
     if feuille_da is None and feuille_cmd is None:
         raise ValueError("aucun onglet « Suivi DA » ou « Suivi BdC » trouvé")
+    if not avec_marches:
+        feuille_marches = None
     if vider:
-        _vider()
+        # Les marchés saisis dans l'application sont conservés, sauf s'ils sont réimportés
+        _vider(avec_marches=feuille_marches is not None)
     erreurs = []
     if feuille_marches is not None:
         _importer_marches(feuille_marches, erreurs)
     nb_da = _importer_da(feuille_da, erreurs) if feuille_da is not None else 0
     nb_cmd = _importer_cmd(feuille_cmd, erreurs) if feuille_cmd is not None else 0
     db.session.commit()
-    return nb_da, nb_cmd, erreurs
+    onglets = [f.title for f in (feuille_da, feuille_cmd, feuille_marches) if f is not None]
+    return nb_da, nb_cmd, erreurs, onglets
 
 
 # --- Export ----------------------------------------------------------------------

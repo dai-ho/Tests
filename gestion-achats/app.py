@@ -552,7 +552,48 @@ def enregistrer_routes(app):
 
     @app.route("/marches/<int:marche_id>")
     def detail_marche(marche_id):
-        return render_template("marche_detail.html", marche=db.get_or_404(Marche, marche_id))
+        marche = db.get_or_404(Marche, marche_id)
+        # BdC rattachables : ceux sans marché, ceux du titulaire du marché en premier
+        titulaire = (marche.titulaire or "").strip().lower()
+        candidats = sorted(Commande.query.filter(Commande.marche_id.is_(None)),
+                           key=lambda c: (titulaire not in [s.lower() for s in c.societes],
+                                          c.reference is None, c.reference or ""))
+        return render_template("marche_detail.html", marche=marche, candidats=candidats)
+
+    @app.post("/marches/<int:marche_id>/rattacher")
+    def rattacher_commandes(marche_id):
+        marche = db.get_or_404(Marche, marche_id)
+        cmds = [c for c in (db.session.get(Commande, i)
+                            for i in request.form.getlist("cmd_id", type=int))
+                if c is not None and c.marche_id is None]
+        if not cmds:
+            flash("Cochez au moins un BdC à rattacher.", "warning")
+            return redirect(url_for("detail_marche", marche_id=marche_id))
+        if marche.simplifie and len(marche.commandes) + len(cmds) > 1:
+            erreur = (f"Le marché {marche.reference} est un marché simplifié : "
+                      "une seule commande peut y être rattachée.")
+        else:
+            erreur = controle_marche(marche, sum(c.montant_total for c in cmds))
+        if erreur:
+            flash(erreur, "danger")
+            return redirect(url_for("detail_marche", marche_id=marche_id))
+        lot = champ("lot")
+        for c in cmds:
+            c.marche = marche
+            c.lot = lot
+        db.session.commit()
+        flash(f"{len(cmds)} BdC rattaché(s) au marché {marche.reference}.", "success")
+        return redirect(url_for("detail_marche", marche_id=marche_id))
+
+    @app.post("/marches/<int:marche_id>/detacher/<int:cmd_id>")
+    def detacher_commande(marche_id, cmd_id):
+        cmd = db.get_or_404(Commande, cmd_id)
+        if cmd.marche_id == marche_id:
+            cmd.marche = None
+            cmd.lot = None
+            db.session.commit()
+            flash(f"BdC {cmd.libelle} détaché du marché.", "success")
+        return redirect(url_for("detail_marche", marche_id=marche_id))
 
     @app.post("/marches/<int:marche_id>/supprimer")
     def supprimer_marche(marche_id):
@@ -585,12 +626,16 @@ def enregistrer_routes(app):
                 flash("Choisissez un fichier .xlsx.", "danger")
                 return redirect(url_for("import_excel"))
             try:
-                nb_da, nb_cmd, erreurs = excel_io.importer(fichier, vider="vider" in request.form)
+                nb_da, nb_cmd, erreurs, onglets = excel_io.importer(
+                    fichier, vider="vider" in request.form,
+                    avec_marches="avec_marches" in request.form)
             except Exception as e:  # fichier illisible, onglets absents...
                 db.session.rollback()
                 flash(f"Import impossible : {e}", "danger")
                 return redirect(url_for("import_excel"))
-            flash(f"Import terminé : {nb_da} poste(s) de DA, {nb_cmd} poste(s) de BdC.",
+            flash(f"Import terminé : {nb_da} poste(s) de DA, {nb_cmd} poste(s) de BdC "
+                  f"(onglets lus : {', '.join(f'« {o} »' for o in onglets)} ; "
+                  "les autres onglets sont ignorés).",
                   "success" if not erreurs else "warning")
         return render_template("import.html", erreurs=erreurs,
                                colonnes_da=excel_io.COLONNES_DA,
