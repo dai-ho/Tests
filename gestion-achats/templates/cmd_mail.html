@@ -7,17 +7,35 @@
   <div class="mb-2"><span class="text-muted">À :</span>
     {% if destinataire %}{{ destinataire }}{% else %}<span class="text-warning-emphasis">non renseigné — <a href="{{ url_for('parametres') }}">à définir dans les paramètres</a></span>{% endif %}</div>
   <div class="mb-3"><span class="text-muted">Objet :</span> <strong id="objet">{{ objet }}</strong></div>
-  <pre class="apercu-mail" id="corps">{{ corps }}</pre>
+  <div class="apercu-mail" id="corps-html">
+    {% for para in contenu.intro %}<p>{{ para }}</p>{% endfor %}
+    <table class="tableau-mail">
+      {% for ligne in contenu.lignes %}<tr>{% for cellule in ligne %}<td{{ ' class="num"'|safe if loop.index == 2 }}>{{ cellule }}</td>{% endfor %}</tr>{% endfor %}
+    </table>
+    {% for para in contenu.fin %}<p>{{ para }}</p>{% endfor %}
+  </div>
+  <pre id="corps" hidden>{{ corps }}</pre>
   <div class="d-flex flex-wrap gap-2 mt-3">
     <a class="btn btn-primary" href="{{ mailto(cmd) }}">✉ Ouvrir dans la messagerie</a>
     <button class="btn btn-outline-secondary" data-copier="objet">Copier l'objet</button>
-    <button class="btn btn-outline-secondary" data-copier="corps">Copier le texte</button>
+    <button class="btn btn-outline-secondary" id="copier-tableau" title="À coller dans Outlook : le tableau est conservé">Copier le message (tableau)</button>
+    <button class="btn btn-outline-secondary" data-copier="corps">Copier en texte brut</button>
     <a class="btn btn-outline-secondary ms-auto" href="{{ url_for('form_commande', cmd_id=cmd.id) }}">{{ 'Saisir le n° de BdC' if not cmd.reference else 'Modifier le BdC' }}</a>
   </div>
-  <div class="form-text mt-2">Le texte est généré à partir du BdC : pour le corriger, modifiez le BdC ou ses postes.
+  <div class="form-text mt-2">« Ouvrir dans la messagerie » crée un message en texte simple, colonnes séparées par
+    des tabulations. Pour un vrai tableau, utilisez « Copier le message (tableau) » puis collez-le dans le message.<br>
+    Le texte est généré à partir du BdC : pour le corriger, modifiez le BdC ou ses postes.
     Le destinataire, le prénom, la formule de fin et la signature se règlent dans <a href="{{ url_for('parametres') }}">Paramètres</a>.</div>
 </div>
 <script>
+  document.getElementById("copier-tableau").addEventListener("click", async (e) => {
+    const b = e.target, html = document.getElementById("corps-html").innerHTML;
+    await navigator.clipboard.write([new ClipboardItem({
+      "text/html": new Blob([html], { type: "text/html" }),
+      "text/plain": new Blob([document.getElementById("corps").textContent], { type: "text/plain" }),
+    })]);
+    const texte = b.textContent; b.textContent = "Copié ✔"; setTimeout(() => (b.textContent = texte), 1500);
+  });
   document.querySelectorAll("[data-copier]").forEach((b) => b.addEventListener("click", async () => {
     await navigator.clipboard.writeText(document.getElementById(b.dataset.copier).textContent);
     const texte = b.textContent; b.textContent = "Copié ✔"; setTimeout(() => (b.textContent = texte), 1500);

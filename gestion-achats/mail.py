@@ -29,8 +29,9 @@ def _euros(v):
     return f"{v or 0:,.2f} €".replace(",", " ").replace(".", ",")
 
 
-def generer(cmd):
-    """Renvoie (destinataire, objet, corps) de l'e-mail de demande pour un BdC."""
+def contenu(cmd):
+    """Éléments de l'e-mail de demande pour un BdC : destinataire, objet, paragraphes
+    d'introduction, lignes du tableau des postes (une liste de cellules par poste), fin."""
     p = parametres()
     projets = list(dict.fromkeys(
         poste.activite or (poste.poste_da.projet if poste.poste_da else None)
@@ -49,19 +50,25 @@ def generer(cmd):
             demande += f", sur le lot {cmd.lot}"
     demande += " ?"
 
-    blocs = []
-    for poste in cmd.postes:
-        lignes = [poste.nom, _euros(poste.montant)]
-        if poste.date_livraison:
-            lignes.append(poste.date_livraison.strftime("%d/%m/%y"))
-        if poste.poste_da:
-            lignes.append(poste.poste_da.rappel)
-        blocs.append("\n".join(lignes))
+    # Une ligne par poste : désignation, montant, échéance, rappel du poste de DA
+    lignes = [[poste.nom, _euros(poste.montant),
+               poste.date_livraison.strftime("%d/%m/%y") if poste.date_livraison else "",
+               poste.poste_da.rappel if poste.poste_da else ""]
+              for poste in cmd.postes]
 
     salutation = f"Bonjour {p['mail_prenom']}," if p["mail_prenom"] else "Bonjour,"
-    corps = "\n\n".join(x for x in [salutation, demande, *blocs, p["mail_fin"],
-                                    p["mail_signature"]] if x)
-    return p["mail_destinataire"], objet, corps
+    return {"destinataire": p["mail_destinataire"], "objet": objet,
+            "intro": [salutation, demande], "lignes": lignes,
+            "fin": [x for x in (p["mail_fin"], p["mail_signature"]) if x]}
+
+
+def generer(cmd):
+    """Renvoie (destinataire, objet, corps en texte brut) de l'e-mail de demande pour un BdC.
+    Les colonnes du tableau des postes sont séparées par des tabulations."""
+    c = contenu(cmd)
+    tableau = "\n".join("\t".join(ligne) for ligne in c["lignes"])
+    corps = "\n\n".join(x for x in [*c["intro"], tableau, *c["fin"]] if x)
+    return c["destinataire"], c["objet"], corps
 
 
 def lien_mailto(cmd):

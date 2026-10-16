@@ -12,7 +12,7 @@
     {% if cmd.commentaire %}<p class="mt-2 mb-0">{{ cmd.commentaire }}</p>{% endif %}
   </div>
   <div class="d-flex gap-2">
-    <a class="btn {{ 'btn-primary' if not cmd.reference else 'btn-outline-primary' }}" href="{{ url_for('mail_commande', cmd_id=cmd.id) }}">✉ E-mail de demande</a>
+    {% if not cmd.reference %}<a class="btn btn-primary" href="{{ url_for('mail_commande', cmd_id=cmd.id) }}">✉ E-mail de demande</a>{% endif %}
     <a class="btn btn-outline-primary" href="{{ url_for('form_poste_commande', cmd_id=cmd.id) }}">+ Ajouter un poste</a>
     <a class="btn btn-outline-secondary" href="{{ url_for('form_commande', cmd_id=cmd.id) }}">{{ 'Saisir le n° de BdC' if not cmd.reference else 'Modifier' }}</a>
     <form method="post" action="{{ url_for('supprimer_commande', cmd_id=cmd.id) }}" data-confirmer="Supprimer le BdC {{ cmd.libelle }} et tous ses postes ?">

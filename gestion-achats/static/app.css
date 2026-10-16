@@ -13,4 +13,8 @@ td.actions form { display: inline; }
 .legende span { display: inline-block; padding: .1rem .6rem; border-radius: .25rem; margin-right: .3rem; font-size: .8rem; }
 dialog.dialogue { border: none; border-radius: .5rem; padding: 1.5rem; width: min(60rem, 95vw); box-shadow: 0 .5rem 2rem rgba(0,0,0,.3); }
 dialog.dialogue::backdrop { background: rgba(0,0,0,.4); }
-.apercu-mail { white-space: pre-wrap; font-family: inherit; background: #fff; border: 1px solid #dee2e6; border-radius: .375rem; padding: 1rem; margin: 0; }
+.apercu-mail { font-family: Calibri, Arial, sans-serif; font-size: 11pt; background: #fff; border: 1px solid #dee2e6; border-radius: .375rem; padding: 1rem; margin: 0; }
+.apercu-mail p { margin: 0 0 1em; }
+.tableau-mail { border-collapse: collapse; margin: 0 0 1em; }
+.tableau-mail td { padding: .1em 1.5em .1em 0; white-space: nowrap; }
+.tableau-mail td.num { text-align: right; }

@@ -410,7 +410,7 @@ def enregistrer_routes(app):
         cmd = db.get_or_404(Commande, cmd_id)
         destinataire, objet, corps = mail.generer(cmd)
         return render_template("cmd_mail.html", cmd=cmd, destinataire=destinataire,
-                               objet=objet, corps=corps)
+                               objet=objet, corps=corps, contenu=mail.contenu(cmd))
 
     @app.route("/commandes/<int:cmd_id>")
     def detail_commande(cmd_id):

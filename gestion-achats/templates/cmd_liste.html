@@ -26,9 +26,11 @@
       <td class="num">{{ c.nb_certifies }} / {{ c.postes|length }}</td>
       <td data-valeur="{{ prochaine or '' }}" style="{{ 'background: #FFFF00' if prochaine and prochaine < aujourdhui }}">{{ prochaine|date_fr }}</td>
       <td class="actions">
-        <a class="btn btn-sm {{ 'btn-primary' if not c.reference else 'btn-outline-secondary' }}" href="{{ mailto(c) }}"
+        {% if not c.reference %}
+        <a class="btn btn-sm btn-primary" href="{{ mailto(c) }}"
            title="Ouvrir l'e-mail de demande de commande dans la messagerie">✉ E-mail</a>
         <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('mail_commande', cmd_id=c.id) }}" title="Voir le texte de l'e-mail">Aperçu</a>
+        {% endif %}
         <a class="btn btn-sm btn-outline-primary" href="{{ url_for('detail_commande', cmd_id=c.id) }}">Ouvrir</a>
       </td>
     </tr>
