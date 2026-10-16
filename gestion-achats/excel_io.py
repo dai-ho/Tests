@@ -36,6 +36,7 @@ COLONNES_CMD = {
     "da_designation": ["Imputation", "Désignation DA"],
     "reference": ["BDC/Marché", "BDC", "N° BDC", "N° Commande", "Commande"],
     "marche": ["N° marché", "Marché", "Numéro de marché"],
+    "lot": ["Lot"],
     "numero": ["poste du BDC", "Poste", "Poste commande"],
     "nom": ["Désignation", "Nom", "Libellé"],
     "montant": ["Montant"],
@@ -49,7 +50,8 @@ COLONNES_CMD = {
 COLONNES_MARCHE = {
     "reference": ["Marché", "N° marché", "Référence"],
     "titulaire": ["Titulaire", "Fournisseur", "Société"],
-    "lot": ["Lot"],
+    "lots": ["Lots", "Lot"],
+    "simplifie": ["Simplifié", "Marché simplifié"],
     "date_echeance": ["Échéance", "Date d'échéance", "Fin"],
     "montant_max": ["Montant maximal", "Montant max", "Maximum", "Plafond"],
     "commentaire": ["Commentaire", "Remarque"],
@@ -232,7 +234,8 @@ def _importer_marches(feuille, erreurs):
             ref = _texte(v.get("reference"))
             if not ref:
                 continue
-            champs = dict(titulaire=_texte(v.get("titulaire")), lot=_texte(v.get("lot")),
+            champs = dict(titulaire=_texte(v.get("titulaire")), lots=_texte(v.get("lots")),
+                          simplifie=_booleen(v.get("simplifie")),
                           date_echeance=_date(v.get("date_echeance")),
                           montant_max=_montant(v.get("montant_max")),
                           commentaire=_texte(v.get("commentaire")))
@@ -332,6 +335,8 @@ def _importer_cmd(feuille, erreurs):
                 cmd = poste.commande
             if ref_marche:
                 cmd.marche = marche
+            if _texte(v.get("lot")):
+                cmd.lot = _texte(v.get("lot"))
             for cle, valeur in champs.items():
                 setattr(poste, cle, valeur)
             if alerte:
@@ -364,10 +369,10 @@ def importer(fichier, vider=False):
 ENTETES_DA = ["Année", "Projet", "DA", "poste", "Désignation", "DA@poste", "Valeur",
               "Centre de coût", "Budget", "Imputé", "Disponible", "Statut", "Remarque",
               "Date de livraison", "Demandeur", "Certificateur"]
-ENTETES_CMD = ["Société", "Activité", "Imputation", "BDC/Marché", "N° marché", "poste du BDC",
+ENTETES_CMD = ["Société", "Activité", "Imputation", "BDC/Marché", "N° marché", "Lot", "poste du BDC",
                "Désignation",
                "Montant", "Echéance", "DA@poste", "PAF", "CSF", "CR pour CSF"]
-ENTETES_MARCHE = ["Marché", "Titulaire", "Lot", "Échéance", "Montant maximal", "Commandé", "Reste",
+ENTETES_MARCHE = ["Marché", "Titulaire", "Lots", "Simplifié", "Échéance", "Montant maximal", "Commandé", "Reste",
                   "Commentaire"]
 COLONNES_EUROS = {"Valeur", "Budget", "Imputé", "Disponible", "Montant", "Montant maximal",
                   "Commandé", "Reste"}
@@ -416,11 +421,11 @@ def exporter():
     _ecrire_feuille(wb.create_sheet("Suivi BdC"), ENTETES_CMD, [
         [p.societe, p.activite, p.poste_da.nom if p.poste_da else None,
          _entier_si_possible(p.commande.reference),
-         p.commande.marche.reference if p.commande.marche else None, p.numero, p.nom, p.montant, p.date_livraison,
+         p.commande.marche.reference if p.commande.marche else None, p.commande.lot, p.numero, p.nom, p.montant, p.date_livraison,
          p.poste_da.cle if p.poste_da else None, p.ptf, "OK" if p.csf else None, p.ref_livrable]
         for p in postes_cmd])
     _ecrire_feuille(wb.create_sheet("Marchés"), ENTETES_MARCHE, [
-        [m.reference, m.titulaire, m.lot, m.date_echeance, m.montant_max, m.engage(), m.restant,
+        [m.reference, m.titulaire, m.lots, "Oui" if m.simplifie else None, m.date_echeance, m.montant_max, m.engage(), m.restant,
          m.commentaire]
         for m in Marche.query.order_by(Marche.reference)])
     flux = BytesIO()

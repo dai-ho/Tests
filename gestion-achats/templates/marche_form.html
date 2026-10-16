@@ -14,9 +14,12 @@
       <input name="montant_max" class="form-control" inputmode="decimal" required value="{{ marche.montant_max|saisie }}"></div>
     <div class="col-md-4"><label class="form-label">Date d'échéance *</label>
       <input name="date_echeance" type="date" class="form-control" required value="{{ marche.date_echeance or '' }}"></div>
-    <div class="col-md-4"><label class="form-label">Lot</label>
-      <input name="lot" class="form-control" placeholder="ex. à BPU" value="{{ marche.lot or '' }}">
-      <div class="form-text">Repris dans l'e-mail : « sur le lot … ».</div></div>
+    <div class="col-md-4"><label class="form-label">Lots</label>
+      <input name="lots" class="form-control" placeholder="ex. à BPU ; forfaitaire" value="{{ marche.lots or '' }}">
+      <div class="form-text">Séparés par « ; ». Proposés lors de la création d'une commande.</div></div>
+    <div class="col-12"><div class="form-check">
+      <input class="form-check-input" type="checkbox" name="simplifie" id="simplifie" {{ 'checked' if marche.simplifie }}>
+      <label class="form-check-label" for="simplifie">Marché simplifié : une seule commande en tout et pour tout</label></div></div>
     <div class="col-12"><label class="form-label">Commentaire</label>
       <textarea name="commentaire" class="form-control" rows="2">{{ marche.commentaire or '' }}</textarea></div>
   </div>

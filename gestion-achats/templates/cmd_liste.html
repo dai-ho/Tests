@@ -18,7 +18,7 @@
     {% set prochaine = (a_certifier|map(attribute='date_livraison')|min) if a_certifier else none %}
     <tr style="{{ '--bs-table-bg: #BFBFBF' if c.postes and c.nb_certifies == c.postes|length else ('--bs-table-bg: #DBEEF4' if not c.reference) }}">
       <td><a href="{{ url_for('detail_commande', cmd_id=c.id) }}">{% if c.reference %}<strong>{{ c.reference }}</strong>{% else %}<em>N° en attente</em>{% endif %}</a></td>
-      <td>{% if c.marche %}<a href="{{ url_for('detail_marche', marche_id=c.marche_id) }}">{{ c.marche.reference }}</a>{% endif %}</td>
+      <td>{% if c.marche %}<a href="{{ url_for('detail_marche', marche_id=c.marche_id) }}">{{ c.marche.reference }}</a>{% if c.lot %}<div class="small text-muted">lot {{ c.lot }}</div>{% endif %}{% endif %}</td>
       <td>{{ c.societes|join(', ') }}</td>
       <td>{{ c.postes|map(attribute='activite')|select|unique|join(', ') }}</td>
       <td class="num">{{ c.postes|length }}</td>

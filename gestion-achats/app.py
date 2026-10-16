@@ -56,6 +56,17 @@ def migrer():
                              f"SELECT {communes} FROM commande_ancienne"))
             cnx.execute(text("DROP TABLE commande_ancienne"))
 
+    if "simplifie" not in {c["name"] for c in inspect(db.engine).get_columns("marche")}:
+        with db.engine.begin() as cnx:
+            cnx.execute(text("ALTER TABLE marche ADD COLUMN simplifie BOOLEAN NOT NULL DEFAULT 0"))
+
+    if "lot" not in {c["name"] for c in inspect(db.engine).get_columns("commande")}:
+        # Le lot passe du marché à chaque commande : reprise du lot unique du marché
+        with db.engine.begin() as cnx:
+            cnx.execute(text("ALTER TABLE commande ADD COLUMN lot VARCHAR(100)"))
+            cnx.execute(text("UPDATE commande SET lot = (SELECT lot FROM marche WHERE "
+                             "marche.id = marche_id AND instr(marche.lot, ';') = 0)"))
+
 
 def create_app(db_uri=None):
     app = Flask(__name__)
@@ -146,13 +157,23 @@ def postes_da_ouverts(sauf_id=None):
 
 
 def marches_ouverts(sauf_id=None):
-    """Marchés proposés : non échus (plus le marché déjà associé)."""
+    """Marchés proposés : non échus et, pour un marché simplifié, sans commande
+    (plus le marché déjà associé)."""
     return [m for m in Marche.query.order_by(Marche.reference)
-            if not m.expire or m.id == sauf_id]
+            if m.id == sauf_id or not (m.expire or (m.simplifie and m.commandes))]
 
 
 def eur(v):
     return f"{v or 0:,.2f} €".replace(",", " ").replace(".", ",")
+
+
+def controle_commande_unique(marche, sauf_commande=None):
+    """Message d'erreur si un marché simplifié a déjà sa commande."""
+    if marche is not None and marche.simplifie and any(
+            c is not sauf_commande for c in marche.commandes):
+        return (f"Le marché {marche.reference} est un marché simplifié : "
+                "il comporte déjà sa commande unique.")
+    return None
 
 
 def controle_marche(marche, montant, sauf_poste=None, sauf_commande=None):
@@ -340,7 +361,7 @@ def enregistrer_routes(app):
             erreur = "Valeur numérique ou date invalide."
         else:
             marche = db.session.get(Marche, marche_id) if marche_id else None
-            erreur = controle_marche(marche, montant)
+            erreur = controle_commande_unique(marche) or controle_marche(marche, montant)
             if not champ("nom"):
                 erreur = "La désignation est obligatoire."
         reference = champ("reference")
@@ -350,7 +371,8 @@ def enregistrer_routes(app):
             flash(erreur, "danger")
             return render_template("cmd_nouvelle.html", saisie=request.form,
                                    **contexte_nouveau_bdc())
-        cmd = Commande(reference=reference, marche=marche, commentaire=champ("commentaire"))
+        cmd = Commande(reference=reference, marche=marche, lot=champ("lot") if marche else None,
+                       commentaire=champ("commentaire"))
         cmd.postes.append(PosteCommande(
             numero=10, nom=champ("nom"), societe=champ("societe"), activite=champ("activite"),
             montant=montant, date_livraison=echeance, csf=False,
@@ -368,13 +390,15 @@ def enregistrer_routes(app):
         if request.method == "POST":
             marche_id = champ_entier("marche_id")
             marche = db.session.get(Marche, marche_id) if marche_id else None
-            erreur = (controle_marche(marche, cmd.montant_total, sauf_commande=cmd)
+            erreur = (controle_commande_unique(marche, sauf_commande=cmd)
+                      or controle_marche(marche, cmd.montant_total, sauf_commande=cmd)
                       if marche is not cmd.marche else None)
             if erreur:
                 flash(erreur, "danger")
             else:
                 cmd.reference = champ("reference")
                 cmd.marche = marche
+                cmd.lot = champ("lot") if marche else None
                 cmd.commentaire = champ("commentaire")
                 if enregistrer("BdC enregistré.", f"Le BdC {champ('reference')} existe déjà."):
                     return redirect(url_for("detail_commande", cmd_id=cmd.id))
@@ -508,7 +532,13 @@ def enregistrer_routes(app):
                 return render_template("marche_form.html", marche=marche, titulaires=titulaires)
             marche.reference = champ("reference")
             marche.titulaire = champ("titulaire")
-            marche.lot = champ("lot")
+            if marche_id and "simplifie" in request.form and len(marche.commandes) > 1:
+                flash("Impossible de passer ce marché en simplifié : il comporte déjà "
+                      f"{len(marche.commandes)} commandes.", "danger")
+                return render_template("marche_form.html", marche=marche, titulaires=titulaires)
+            marche.lots = "; ".join(x.strip() for x in (champ("lots") or "").split(";")
+                                    if x.strip()) or None
+            marche.simplifie = "simplifie" in request.form
             marche.montant_max = montant_max
             marche.date_echeance = date_echeance
             marche.commentaire = champ("commentaire")

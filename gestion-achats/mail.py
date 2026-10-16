@@ -45,8 +45,8 @@ def generer(cmd):
     demande = "Pourrais-tu lancer la commande suivante"
     if marche:
         demande += f", sur le marché {marche.reference}"
-        if marche.lot:
-            demande += f", sur le lot {marche.lot}"
+        if cmd.lot:
+            demande += f", sur le lot {cmd.lot}"
     demande += " ?"
 
     blocs = []

@@ -28,12 +28,18 @@ class Marche(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     reference = db.Column(db.String(50), unique=True, nullable=False)
     titulaire = db.Column(db.String(100))                   # Fournisseur
-    lot = db.Column(db.String(100))                         # ex. « à BPU »
+    lots = db.Column("lot", db.String(255))                 # lots du marché, séparés par « ; »
+    # Marché simplifié : une seule commande en tout et pour tout
+    simplifie = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
     date_echeance = db.Column(db.Date)
     montant_max = db.Column(db.Float)
     commentaire = db.Column(db.Text)
 
     commandes = db.relationship("Commande", back_populates="marche")
+
+    @property
+    def liste_lots(self):
+        return [x.strip() for x in (self.lots or "").split(";") if x.strip()]
 
     def engage(self, sauf_poste=None, sauf_commande=None):
         """Total des postes de BdC passés sur ce marché."""
@@ -139,6 +145,7 @@ class Commande(db.Model):
     # N° BdC : vide tant que le service achat ne l'a pas communiqué
     reference = db.Column(db.String(50), unique=True)
     marche_id = db.Column(db.Integer, db.ForeignKey("marche.id"))
+    lot = db.Column(db.String(100))                         # lot du marché commandé, ex. « à BPU »
     commentaire = db.Column(db.Text)
 
     marche = db.relationship("Marche", back_populates="commandes")

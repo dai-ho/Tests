@@ -17,13 +17,17 @@
       <select name="marche_id" class="form-select" id="nb-marche">
         <option value="">— hors marché —</option>
         {% for m in marches %}
-          <option value="{{ m.id }}" data-titulaire="{{ m.titulaire or '' }}" data-restant="{{ m.restant if m.restant is not none else '' }}"
+          <option value="{{ m.id }}" data-titulaire="{{ m.titulaire or '' }}" data-lots="{{ m.lots or '' }}" data-restant="{{ m.restant if m.restant is not none else '' }}"
                   {{ 'selected' if saisie.get('marche_id') == m.id|string }}>
-            {{ m.reference }}{% if m.titulaire %} — {{ m.titulaire }}{% endif %}{% if m.restant is not none %} — reste {{ m.restant|euros }}{% endif %}
+            {{ m.reference }}{% if m.titulaire %} — {{ m.titulaire }}{% endif %}{% if m.simplifie %} — simplifié{% endif %}{% if m.restant is not none %} — reste {{ m.restant|euros }}{% endif %}
           </option>
         {% endfor %}
       </select>
-      <div class="form-text">Les marchés échus ne sont pas proposés.</div></div>
+      <div class="form-text">Les marchés échus, et les marchés simplifiés ayant déjà leur commande, ne sont pas proposés.</div></div>
+    <div class="col-md-6" id="nb-bloc-lot" hidden><label class="form-label">Lot</label>
+      <input name="lot" id="nb-lot" class="form-control" list="nb-lots" value="{{ saisie.get('lot', '') }}">
+      <datalist id="nb-lots"></datalist>
+      <div class="form-text">Repris dans l'e-mail : « sur le lot … ».</div></div>
     <div class="col-md-6"><label class="form-label">Société (fournisseur)</label>
       <input name="societe" id="nb-societe" class="form-control" list="nb-societes" value="{{ saisie.get('societe', '') }}">
       <datalist id="nb-societes">{% for v in societes %}<option value="{{ v }}">{% endfor %}</datalist></div>
@@ -88,11 +92,21 @@
     }
     infos();
   });
+  // Lots du marché proposés (pré-rempli s'il n'y en a qu'un)
+  const majLots = (preremplir) => {
+    const opt = marche.selectedOptions[0];
+    const lots = opt && opt.value ? opt.dataset.lots.split(";").map((x) => x.trim()).filter(Boolean) : [];
+    $("nb-lots").innerHTML = lots.map((l) => `<option value="${l}">`).join("");
+    $("nb-bloc-lot").hidden = !(opt && opt.value);
+    if (preremplir) $("nb-lot").value = lots.length === 1 ? lots[0] : "";
+  };
   marche.addEventListener("change", () => {
     const opt = marche.selectedOptions[0];
     if (opt && opt.value && opt.dataset.titulaire) $("nb-societe").value = opt.dataset.titulaire;
+    majLots(true);
     infos();
   });
+  majLots(false);
   $("nb-montant").addEventListener("input", infos);
   infos();
 })();

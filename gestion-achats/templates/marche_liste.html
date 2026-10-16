@@ -9,7 +9,7 @@
 {{ macros.filtre("table-marches", "Filtrer : référence, titulaire, lot…") }}
 <div class="table-responsive"><table class="table table-hover align-middle" id="table-marches">
   <thead><tr>
-    <th data-tri>Référence</th><th data-tri>Titulaire</th><th data-tri>Lot</th><th data-tri>Échéance</th>
+    <th data-tri>Référence</th><th data-tri>Titulaire</th><th data-tri>Lots</th><th data-tri>Échéance</th>
     <th data-tri class="num">Montant maximal</th><th data-tri class="num">Commandé</th><th data-tri class="num">Reste</th>
     <th>Consommation</th><th data-tri class="num">BdC</th><th></th>
   </tr></thead>
@@ -17,7 +17,7 @@
   {% for m in marches %}
     <tr style="{{ '--bs-table-bg: #D9D9D9' if m.expire }}">
       <td><a href="{{ url_for('detail_marche', marche_id=m.id) }}"><strong>{{ m.reference }}</strong></a></td>
-      <td>{{ m.titulaire or '' }}</td><td>{{ m.lot or '' }}</td>
+      <td>{{ m.titulaire or '' }}</td><td>{{ m.liste_lots|join(', ') }}{% if m.simplifie %} <span class="badge bg-info text-dark">simplifié</span>{% endif %}</td>
       <td data-valeur="{{ m.date_echeance or '' }}">{{ m.date_echeance|date_fr }}{% if m.expire %} <span class="badge bg-secondary">échu</span>{% endif %}</td>
       {{ macros.montant(m.montant_max) }}{{ macros.montant(m.engage()) }}{{ macros.montant(m.restant, true) }}
       <td>{% include "_barre_marche.html" %}</td>

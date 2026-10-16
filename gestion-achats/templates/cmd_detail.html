@@ -6,7 +6,7 @@
   <div>
     <a href="{{ url_for('liste_commandes') }}" class="small">← Bons de commande</a>
     <h3 class="mb-0">BdC {{ cmd.libelle }}{% if cmd.societes %} <small class="text-muted">– {{ cmd.societes|join(', ') }}</small>{% endif %}</h3>
-    {% if cmd.marche %}<div>Marché <a href="{{ url_for('detail_marche', marche_id=cmd.marche_id) }}">{{ cmd.marche.reference }}</a>
+    {% if cmd.marche %}<div>Marché <a href="{{ url_for('detail_marche', marche_id=cmd.marche_id) }}">{{ cmd.marche.reference }}</a>{% if cmd.lot %}, lot {{ cmd.lot }}{% endif %}
       {% if cmd.marche.restant is not none %}<span class="text-muted">– reste {{ cmd.marche.restant|euros }} sur le marché</span>{% endif %}</div>{% endif %}
     <div class="text-muted">{{ cmd.postes|length }} poste(s) – {{ cmd.montant_total|euros }} – {{ cmd.nb_certifies }} CSF OK</div>
     {% if cmd.commentaire %}<p class="mt-2 mb-0">{{ cmd.commentaire }}</p>{% endif %}
