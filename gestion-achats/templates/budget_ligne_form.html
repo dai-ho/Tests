@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block titre %}{{ 'Ligne ' ~ ligne.code if ligne.id else 'Nouvelle ligne budgétaire' }}{% endblock %}
+{% block contenu %}
+<a href="{{ url_for('detail_ligne_budget', ligne_id=ligne.id) if ligne.id else url_for('liste_budgets') }}" class="small">← {{ 'Ligne ' ~ ligne.code if ligne.id else 'Budgets' }}</a>
+<h3>{{ 'Modifier la ligne ' ~ ligne.code if ligne.id else 'Nouvelle ligne budgétaire' }}</h3>
+<form method="post" class="card card-body" style="max-width: 45rem">
+  <div class="row g-3">
+    <div class="col-md-5"><label class="form-label">Code *</label>
+      <input name="code" class="form-control" required autofocus placeholder="ex. 23T_0531 ou C_MMX/20" value="{{ ligne.code or '' }}">
+      <div class="form-text">Identique au « centre de coût » des postes de DA : c'est ce qui relie les DA et BdC à la ligne.</div></div>
+    <div class="col-md-7"><label class="form-label">Libellé</label>
+      <input name="libelle" class="form-control" value="{{ ligne.libelle or '' }}"></div>
+    <div class="col-12"><label class="form-label">Type *</label>
+      {% for cle, texte in types.items() %}
+        <div class="form-check"><input class="form-check-input" type="radio" name="type" id="type-{{ cle }}" value="{{ cle }}" {{ 'checked' if ligne.type == cle }}>
+          <label class="form-check-label" for="type-{{ cle }}"><strong>{{ texte.split(' : ')[0] }}</strong> : {{ texte.split(' : ')[1] }}</label></div>
+      {% endfor %}</div>
+    <div class="col-md-5"><label class="form-label">Projet</label>
+      <input name="projet" class="form-control" list="liste-projets" value="{{ ligne.projet or '' }}">
+      <datalist id="liste-projets">{% for v in projets %}<option value="{{ v }}">{% endfor %}</datalist>
+      <div class="form-text">Pour une ligne projet ; sert au filtre par projet.</div></div>
+    <div class="col-12"><label class="form-label">Commentaire</label>
+      <textarea name="commentaire" class="form-control" rows="2">{{ ligne.commentaire or '' }}</textarea></div>
+  </div>
+  <div class="d-flex gap-2 mt-4">
+    <button class="btn btn-primary">Enregistrer</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('detail_ligne_budget', ligne_id=ligne.id) if ligne.id else url_for('liste_budgets') }}">Annuler</a>
+  </div>
+</form>
+{% endblock %}

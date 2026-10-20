@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros %}
+{% block titre %}Ligne {{ ligne.code }}{% endblock %}
+{% block contenu %}
+{% set s = none %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <a href="{{ url_for('liste_budgets') }}" class="small">← Budgets</a>
+    <h3 class="mb-0">Ligne {{ ligne.code }}{% if ligne.libelle %} <small class="text-muted">– {{ ligne.libelle }}</small>{% endif %}</h3>
+    <div class="d-flex gap-2 align-items-center">{% include "_type_budget.html" %}
+      <span class="small text-muted">{{ types[ligne.type] }}</span></div>
+    {% if ligne.commentaire %}<p class="mt-2 mb-0">{{ ligne.commentaire }}</p>{% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('form_ligne_budget', ligne_id=ligne.id) }}">Modifier</a>
+    <form method="post" action="{{ url_for('supprimer_ligne_budget', ligne_id=ligne.id) }}" data-confirmer="Supprimer la ligne {{ ligne.code }} et ses budgets annuels ? Les DA ne sont pas modifiées.">
+      <button class="btn btn-outline-danger">Supprimer</button></form>
+  </div>
+</div>
+
+<h5>Budget par année</h5>
+<div class="table-responsive"><table class="table table-hover align-middle">
+  <thead><tr>
+    <th>Année</th><th class="num">Demandé</th><th class="num">Alloué</th><th class="num">Report</th><th class="num">Budget</th>
+    <th class="num">DA (prévu)</th><th class="num">BdC (imputé)</th><th class="num">Disponible</th><th>Consommation</th><th>Alertes</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for s in situations %}{% set b = s.budget %}
+    <tr class="{{ 'table-primary' if s.annee == aujourdhui.year }}">
+      <td><strong>{{ s.annee }}</strong>{% if b and not b.confirme %} <span class="badge bg-warning text-dark">demandé</span>{% endif %}
+        {% if b and b.commentaire %}<div class="small text-muted">{{ b.commentaire }}</div>{% endif %}</td>
+      {{ macros.montant(b.montant_demande if b) }}{{ macros.montant(b.montant_alloue if b) }}{{ macros.montant(b.report if b) }}
+      <td class="num fw-bold">{{ s.total|euros if b else '—' }}</td>
+      {{ macros.montant(s.prevu) }}{{ macros.montant(s.impute) }}{{ macros.montant(s.disponible, true) }}
+      <td style="min-width: 9rem">{% include "_barre_budget.html" %}</td>
+      <td>{% for niveau, texte in s.alertes %}<span class="badge bg-{{ niveau }}{{ ' text-dark' if niveau in ('warning', 'info') }} me-1">{{ texte }}</span>{% endfor %}</td>
+      <td class="actions">
+        <button type="button" class="btn btn-sm btn-outline-primary" data-editer='{{ {"annee": s.annee,
+          "montant_demande": b.montant_demande|saisie if b else "", "montant_alloue": b.montant_alloue|saisie if b else "",
+          "report": b.report|saisie if b else "", "commentaire": (b.commentaire or "") if b else ""}|tojson }}'>{{ 'Modifier' if b else 'Saisir' }}</button>
+        {% if ligne.reportable and b and s.disponible > 0 %}
+        <form method="post" action="{{ url_for('reporter_budget', ligne_id=ligne.id, annee=s.annee) }}"
+              data-confirmer="Reporter {{ s.disponible|euros }} de {{ s.annee }} sur {{ s.annee + 1 }} ?">
+          <button class="btn btn-sm btn-outline-success" title="Reporter le disponible sur l'année suivante">Reporter sur {{ s.annee + 1 }}</button></form>
+        {% endif %}
+        {% if b %}{{ macros.bouton_supprimer(url_for('supprimer_budget_annuel', budget_id=b.id), 'Supprimer le budget ' ~ s.annee ~ ' ?') }}{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+
+<form method="post" action="{{ url_for('enregistrer_budget_annuel', ligne_id=ligne.id) }}" class="card card-body mb-4" id="form-annee" style="max-width: 60rem">
+  <h6 class="mb-3">Saisir le budget d'une année</h6>
+  <div class="row g-3 align-items-end">
+    <div class="col-md-2"><label class="form-label">Année *</label>
+      <input name="annee" type="number" class="form-control" required value="{{ annee_suivante }}"></div>
+    <div class="col-md-3"><label class="form-label">Montant demandé (€)</label>
+      <input name="montant_demande" class="form-control" inputmode="decimal"></div>
+    <div class="col-md-3"><label class="form-label">Montant alloué (€)</label>
+      <input name="montant_alloue" class="form-control" inputmode="decimal" placeholder="à la confirmation"></div>
+    <div class="col-md-2"><label class="form-label">Report (€)</label>
+      <input name="report" class="form-control" inputmode="decimal" {{ 'disabled title="Ligne structure : pas de report"'|safe if not ligne.reportable }}></div>
+    <div class="col-12"><label class="form-label">Commentaire</label>
+      <input name="commentaire" class="form-control"></div>
+  </div>
+  <div class="form-text">Demande budgétaire pour N+1 : saisissez le montant demandé ; renseignez le montant alloué
+    lorsqu'il est confirmé (fin d'année). Tant qu'il est vide, le budget est « envisagé » sur la base de la demande.</div>
+  <div class="mt-3"><button class="btn btn-primary">Enregistrer</button></div>
+</form>
+
+<h5>Postes de DA imputés sur cette ligne</h5>
+<div class="table-responsive"><table class="table table-sm table-hover align-middle">
+  <thead><tr><th>Année</th><th>Projet</th><th>DA@poste</th><th>Désignation</th><th class="num">Valeur</th>
+    <th class="num">Imputé (BdC)</th><th class="num">Disponible</th><th>Statut</th></tr></thead>
+  <tbody>
+  {% for p in postes %}
+    <tr style="{{ style_da(p) }}">
+      <td>{{ p.annee or '' }}</td><td>{{ p.projet or '' }}</td>
+      <td><a href="{{ url_for('detail_da', da_id=p.da_id) }}">{{ p.cle }}</a></td><td>{{ p.nom }}</td>
+      {{ macros.montant(p.montant) }}{{ macros.montant(p.impute) }}{{ macros.montant(p.disponible, true) }}<td>{{ p.statut }}</td>
+    </tr>
+  {% else %}<tr><td colspan="8" class="text-muted">Aucun poste de DA avec le centre de coût {{ ligne.code }}.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+<script>
+  // « Modifier » / « Saisir » : remplit le formulaire de saisie avec l'année choisie
+  document.querySelectorAll("[data-editer]").forEach((b) => b.addEventListener("click", () => {
+    const valeurs = JSON.parse(b.dataset.editer), form = document.getElementById("form-annee");
+    for (const [nom, v] of Object.entries(valeurs)) if (form.elements[nom]) form.elements[nom].value = v;
+    form.scrollIntoView({ behavior: "smooth" });
+    form.elements["montant_alloue"].focus();
+  }));
+</script>
+{% endblock %}

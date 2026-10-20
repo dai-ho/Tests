@@ -23,6 +23,26 @@
   {% endif %}
 </table></div>
 
+{% if budgets_alerte %}
+<h5>Budgets {{ annee_budget }} à surveiller <span class="badge bg-warning text-dark">{{ budgets_alerte|length }}</span>
+  <a class="small fw-normal ms-2" href="{{ url_for('liste_budgets') }}">tous les budgets</a></h5>
+<div class="table-responsive mb-4"><table class="table table-sm table-hover align-middle">
+  <thead><tr><th>Ligne</th><th>Type</th><th class="num">Budget</th><th class="num">DA (prévu)</th><th class="num">BdC (imputé)</th>
+    <th class="num">Disponible</th><th>Alertes</th></tr></thead>
+  <tbody>
+  {% for s in budgets_alerte %}
+    <tr>
+      <td><a href="{{ url_for('detail_ligne_budget', ligne_id=s.ligne.id) }}">{{ s.ligne.code }}</a></td>
+      <td>{% include "_type_budget.html" %}</td>
+      <td class="num">{{ s.total|euros if s.budget else '—' }}{% if s.statut == 'demandé' %} <span class="badge bg-warning text-dark">demandé</span>{% endif %}</td>
+      {{ macros.montant(s.prevu) }}{{ macros.montant(s.impute) }}{{ macros.montant(s.disponible, true) }}
+      <td>{% for niveau, texte in s.alertes %}<span class="badge bg-{{ niveau }}{{ ' text-dark' if niveau in ('warning', 'info') }} me-1">{{ texte }}</span>{% endfor %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
 {% if en_attente or marches_alerte %}
 <div class="row g-4 mb-4">
   {% if en_attente %}

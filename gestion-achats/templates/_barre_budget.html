@@ -1,0 +1,8 @@
+{# Jauge d'une situation budgétaire `s` : BdC imputés (plein) et DA prévues (clair), rapportés au budget #}
+{% if s.budget and s.total > 0 %}
+  {% set p_bdc = s.impute / s.total * 100 %}{% set p_da = s.prevu / s.total * 100 %}
+  <div class="progress" style="height: .9rem" title="BdC {{ s.impute|euros }} – DA {{ s.prevu|euros }} – budget {{ s.total|euros }}">
+    <div class="progress-bar {{ 'bg-danger' if p_bdc > 100 else 'bg-success' }}" style="width: {{ [p_bdc, 100]|min }}%">{{ p_bdc|round|int }} %</div>
+    {% if p_da > p_bdc %}<div class="progress-bar {{ 'bg-warning' if p_da > 100 else 'bg-success' }} opacity-50" style="width: {{ [p_da, 100]|min - [p_bdc, 100]|min }}%"></div>{% endif %}
+  </div>
+{% endif %}

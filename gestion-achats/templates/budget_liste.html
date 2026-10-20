@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros %}
+{% block titre %}Budgets{% endblock %}
+{% block contenu %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="mb-0">Budgets {{ annee }}</h3>
+  <a class="btn btn-primary" href="{{ url_for('form_ligne_budget') }}">+ Nouvelle ligne budgétaire</a>
+</div>
+<p class="small text-muted mb-2">
+  <strong>Budget</strong> : alloué s'il est confirmé, sinon montant demandé (envisagé), plus le report éventuel ·
+  <strong>DA</strong> : dépenses prévues (postes de DA de la ligne et de l'année) ·
+  <strong>BdC</strong> : montants réellement commandés ·
+  <strong>Disponible</strong> = budget − BdC.
+</p>
+
+<div class="table-responsive"><table class="table table-hover align-middle">
+  <thead><tr>
+    <th>Ligne</th><th>Type</th><th class="num">Budget</th><th class="num">DA (prévu)</th><th class="num">Reste à programmer</th>
+    <th class="num">BdC (imputé)</th><th class="num">Disponible</th><th>Consommation</th><th>Alertes</th>
+  </tr></thead>
+  <tbody>
+  {% for s in situations %}
+    <tr>
+      <td><a href="{{ url_for('detail_ligne_budget', ligne_id=s.ligne.id) }}"><strong>{{ s.ligne.code }}</strong></a>
+        {% if s.ligne.libelle %}<div class="small text-muted">{{ s.ligne.libelle }}</div>{% endif %}</td>
+      <td>{% include "_type_budget.html" %}</td>
+      <td class="num">{{ s.total|euros if s.budget else '—' }}{% if s.statut == 'demandé' %}<div><span class="badge bg-warning text-dark">demandé</span></div>{% endif %}</td>
+      {{ macros.montant(s.prevu) }}{{ macros.montant(s.reste_da, true) }}{{ macros.montant(s.impute) }}{{ macros.montant(s.disponible, true) }}
+      <td style="min-width: 9rem">{% include "_barre_budget.html" %}</td>
+      <td>{% for niveau, texte in s.alertes %}<span class="badge bg-{{ niveau }}{{ ' text-dark' if niveau in ('warning', 'info') }} me-1">{{ texte }}</span>{% endfor %}</td>
+    </tr>
+  {% else %}<tr><td colspan="9" class="text-muted">Aucune ligne budgétaire. Créez-en une, ou partez des centres de coût listés plus bas.</td></tr>{% endfor %}
+  </tbody>
+  {% if situations %}
+  {% set budgetes = situations|selectattr('budget')|list %}
+  <tfoot class="fw-bold"><tr><td colspan="2">Total</td>
+    {{ macros.montant(budgetes|sum(attribute='total')) }}{{ macros.montant(situations|sum(attribute='prevu')) }}
+    {{ macros.montant(budgetes|sum(attribute='reste_da'), true) }}{{ macros.montant(situations|sum(attribute='impute')) }}
+    {{ macros.montant(budgetes|sum(attribute='disponible'), true) }}<td colspan="2"></td></tr></tfoot>
+  {% endif %}
+</table></div>
+
+<h4 class="mt-4">Vue pluriannuelle</h4>
+<p class="small text-muted mb-2">Par année : budget (<em>en italique s'il n'est que demandé</em>) et, en dessous, BdC imputés / DA prévues.</p>
+<div class="table-responsive"><table class="table table-sm table-bordered align-middle">
+  <thead><tr><th>Ligne</th>{% for a in annees %}<th class="num {{ 'table-primary' if a == annee }}">{{ a }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for ligne, cases in matrice %}
+    <tr>
+      <td><a href="{{ url_for('detail_ligne_budget', ligne_id=ligne.id) }}">{{ ligne.code }}</a>
+        <span class="small text-muted">{{ 'projet' if ligne.reportable else 'structure' }}</span></td>
+      {% for s in cases %}
+        <td class="num {{ 'table-primary' if s.annee == annee }}" title="{{ s.alertes|map(attribute=1)|join(', ') }}">
+          {% if s.budget %}<div class="{{ 'fst-italic text-muted' if s.statut == 'demandé' }}">{{ s.total|euros }}</div>{% endif %}
+          {% if s.impute or s.prevu %}<div class="small {{ 'text-danger' if s.alertes|selectattr(0, 'in', ['danger', 'warning'])|list else 'text-muted' }}">
+            {{ s.impute|euros }} / {{ s.prevu|euros }}</div>{% endif %}
+        </td>
+      {% endfor %}
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+
+{% if orphelins %}
+<h5 class="mt-4">Centres de coût {{ annee }} utilisés dans les DA sans ligne budgétaire</h5>
+<div class="table-responsive"><table class="table table-sm align-middle" style="max-width: 40rem">
+  <thead><tr><th>Centre de coût</th><th class="num">DA {{ annee }}</th><th></th></tr></thead>
+  <tbody>
+  {% for code, montant in orphelins %}
+    <tr><td>{{ code }}</td>{{ macros.montant(montant) }}
+      <td class="actions"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('form_ligne_budget', code=code) }}">Créer la ligne</a></td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+{% endblock %}

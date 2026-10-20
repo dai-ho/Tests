@@ -9,7 +9,8 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from models import Commande, DemandeAchat, Marche, PosteCommande, PosteDA, db
+from models import (TYPES_BUDGET, BudgetAnnuel, Commande, DemandeAchat, LigneBudgetaire, Marche,
+                    PosteCommande, PosteDA, db)
 
 # Colonnes reconnues : clé interne -> en-têtes acceptés (le premier sert à l'export).
 # Les en-têtes sont comparés sans accents, sans casse ni ponctuation.
@@ -55,6 +56,19 @@ COLONNES_MARCHE = {
     "date_echeance": ["Échéance", "Date d'échéance", "Fin"],
     "montant_max": ["Montant maximal", "Montant max", "Maximum", "Plafond"],
     "commentaire": ["Commentaire", "Remarque"],
+}
+
+COLONNES_BUDGET = {
+    "code": ["Code", "Ligne budgétaire", "Centre de coût"],
+    "libelle": ["Libellé", "Intitulé"],
+    "type": ["Type"],
+    "projet": ["Projet"],
+    "annee": ["Année"],
+    "montant_demande": ["Demandé", "Montant demandé"],
+    "montant_alloue": ["Alloué", "Montant alloué"],
+    "report": ["Report"],
+    "commentaire_ligne": ["Commentaire ligne"],
+    "commentaire": ["Commentaire année", "Commentaire"],
 }
 
 VRAI = {"oui", "o", "x", "1", "fait", "ok", "yes", "y", "vrai", "true", "certifie"}
@@ -149,23 +163,27 @@ def _lire_feuille(ws, colonnes, obligatoires):
 
 
 def _trouver_feuilles(wb):
-    feuille_da = feuille_cmd = feuille_marches = None
+    feuille_da = feuille_cmd = feuille_marches = feuille_budgets = None
     for ws in wb.worksheets:
         mots = set(_normaliser(ws.title).split())
         if feuille_cmd is None and ({"bdc", "bc", "commandes", "commande"} & mots):
             feuille_cmd = ws
         elif feuille_marches is None and ({"marche", "marches"} & mots):
             feuille_marches = ws
+        elif feuille_budgets is None and ({"budget", "budgets"} & mots):
+            feuille_budgets = ws
         elif feuille_da is None and ({"da", "demande", "demandes"} & mots):
             feuille_da = ws
-    return feuille_da, feuille_cmd, feuille_marches
+    return feuille_da, feuille_cmd, feuille_marches, feuille_budgets
 
 
-def _vider(avec_marches):
+def _vider(avec_referentiels):
     PosteCommande.query.delete()
     Commande.query.delete()
-    if avec_marches:
+    if avec_referentiels:
         Marche.query.delete()
+        BudgetAnnuel.query.delete()
+        LigneBudgetaire.query.delete()
     PosteDA.query.delete()
     DemandeAchat.query.delete()
     db.session.flush()
@@ -251,6 +269,37 @@ def _importer_marches(feuille, erreurs):
             erreurs.append(f"{feuille.title} ligne {v['_ligne']} : {e}")
     db.session.flush()
     return nb
+
+
+def _importer_budgets(feuille, erreurs):
+    lignes = {l.code: l for l in LigneBudgetaire.query}
+    for v in _lire_feuille(feuille, COLONNES_BUDGET, {"code"}):
+        try:
+            code = _texte(v.get("code"))
+            if not code:
+                continue
+            annee = _entier(v.get("annee"))
+            montants = {c: _montant(v.get(c)) for c in ("montant_demande", "montant_alloue", "report")}
+            ligne = lignes.get(code)
+            if ligne is None:
+                ligne = lignes[code] = LigneBudgetaire(code=code)
+                db.session.add(ligne)
+            type_ = _normaliser(v.get("type"))
+            ligne.type = "projet" if type_.startswith("projet") else "structure"
+            ligne.libelle = _texte(v.get("libelle")) or ligne.libelle
+            ligne.projet = _texte(v.get("projet")) or ligne.projet
+            ligne.commentaire = _texte(v.get("commentaire_ligne")) or ligne.commentaire
+            if annee:
+                b = ligne.budget(annee)
+                if b is None:
+                    b = BudgetAnnuel(annee=annee)
+                    ligne.annees.append(b)
+                for c, m in montants.items():
+                    setattr(b, c, m)
+                b.commentaire = _texte(v.get("commentaire"))
+        except (ValueError, TypeError) as e:
+            erreurs.append(f"{feuille.title} ligne {v['_ligne']} : {e}")
+    db.session.flush()
 
 
 def _trouver_poste_da(v, par_designation, par_cle):
@@ -348,26 +397,29 @@ def _importer_cmd(feuille, erreurs):
     return nb
 
 
-def importer(fichier, vider=False, avec_marches=False):
-    """Importe un classeur : onglets DA et BdC, plus l'onglet Marchés si `avec_marches`
-    (fichier exporté par l'application). Les autres onglets sont ignorés.
+def importer(fichier, vider=False, avec_referentiels=False):
+    """Importe un classeur : onglets DA et BdC, plus les onglets Marchés et Budgets si
+    `avec_referentiels` (fichier exporté par l'application). Les autres onglets sont ignorés.
     Renvoie (nb_postes_da, nb_postes_cmd, erreurs, onglets importés)."""
     wb = load_workbook(fichier, data_only=True, read_only=True)
-    feuille_da, feuille_cmd, feuille_marches = _trouver_feuilles(wb)
+    feuille_da, feuille_cmd, feuille_marches, feuille_budgets = _trouver_feuilles(wb)
     if feuille_da is None and feuille_cmd is None:
         raise ValueError("aucun onglet « Suivi DA » ou « Suivi BdC » trouvé")
-    if not avec_marches:
-        feuille_marches = None
+    if not avec_referentiels:
+        feuille_marches = feuille_budgets = None
     if vider:
-        # Les marchés saisis dans l'application sont conservés, sauf s'ils sont réimportés
-        _vider(avec_marches=feuille_marches is not None)
+        # Marchés et budgets saisis dans l'application sont conservés, sauf s'ils sont réimportés
+        _vider(avec_referentiels=avec_referentiels)
     erreurs = []
     if feuille_marches is not None:
         _importer_marches(feuille_marches, erreurs)
+    if feuille_budgets is not None:
+        _importer_budgets(feuille_budgets, erreurs)
     nb_da = _importer_da(feuille_da, erreurs) if feuille_da is not None else 0
     nb_cmd = _importer_cmd(feuille_cmd, erreurs) if feuille_cmd is not None else 0
     db.session.commit()
-    onglets = [f.title for f in (feuille_da, feuille_cmd, feuille_marches) if f is not None]
+    onglets = [f.title for f in (feuille_da, feuille_cmd, feuille_marches, feuille_budgets)
+               if f is not None]
     return nb_da, nb_cmd, erreurs, onglets
 
 
@@ -381,8 +433,10 @@ ENTETES_CMD = ["Société", "Activité", "Imputation", "BDC/Marché", "N° march
                "Montant", "Echéance", "DA@poste", "PAF", "CSF", "CR pour CSF"]
 ENTETES_MARCHE = ["Marché", "Titulaire", "Lots", "Simplifié", "Échéance", "Montant maximal", "Commandé", "Reste",
                   "Commentaire"]
+ENTETES_BUDGET = ["Code", "Libellé", "Type", "Projet", "Année", "Demandé", "Alloué", "Report",
+                  "Commentaire année", "Commentaire ligne"]
 COLONNES_EUROS = {"Valeur", "Budget", "Imputé", "Disponible", "Montant", "Montant maximal",
-                  "Commandé", "Reste"}
+                  "Commandé", "Reste", "Demandé", "Alloué", "Report"}
 
 
 def _entier_si_possible(s):
@@ -435,6 +489,14 @@ def exporter():
         [m.reference, m.titulaire, m.lots, "Oui" if m.simplifie else None, m.date_echeance, m.montant_max, m.engage(), m.restant,
          m.commentaire]
         for m in Marche.query.order_by(Marche.reference)])
+    lignes_budget = []
+    for l in LigneBudgetaire.query.order_by(LigneBudgetaire.code):
+        debut = [l.code, l.libelle, l.type, l.projet]
+        for b in l.annees or [None]:
+            lignes_budget.append(debut + (
+                [b.annee, b.montant_demande, b.montant_alloue, b.report, b.commentaire] if b
+                else [None] * 5) + [l.commentaire])
+    _ecrire_feuille(wb.create_sheet("Budgets"), ENTETES_BUDGET, lignes_budget)
     flux = BytesIO()
     wb.save(flux)
     flux.seek(0)

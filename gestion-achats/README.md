@@ -33,6 +33,12 @@ Reprend la structure du fichier **Budgets GT** (onglets « Suivi DA » et « Sui
   ne peut pas dépasser son montant maximal (contrôle à la saisie, jauge de consommation). Le lot est choisi
   à chaque commande parmi ceux du marché. Un marché **simplifié** n'accepte qu'une seule commande.
 - **Suivi DA / Suivi BdC** : vues tableur avec filtre instantané et tri par colonne.
+- **Budgets** : lignes budgétaires (code = centre de coût des DA, ex. 23T_0531 ou C_MMX/20), de type
+  *structure* (à consommer dans l'année, perdu sinon) ou *projet* (reliquat reportable sur N+1, bouton
+  « Reporter »). Par année : montant demandé (demande faite en N pour N+1), montant alloué à la confirmation,
+  report. Vue annuelle et pluriannuelle comparant le budget aux DA (prévisionnel) et aux BdC (imputé réel),
+  avec alertes (DA ou BdC au-delà du budget, budget structure à consommer avant le 31/12, centres de coût
+  sans ligne). Un avertissement s'affiche à l'enregistrement d'un poste de DA ou de BdC qui dépasse le budget.
 - **Filtre année / projet** (bandeau sous le menu) sur le tableau de bord, les DA, le Suivi DA, les BdC et le
   Suivi BdC ; l'année en cours est sélectionnée par défaut. Un poste de BdC prend l'année et le projet de son
   poste de DA. Les marchés, pluriannuels, ne sont pas filtrés.
@@ -54,6 +60,7 @@ dans `donnees/sauvegardes/`.
 | `app.py` | Application Flask : pages et formulaires |
 | `models.py` | Modèle de données (DA, postes DA, BdC, postes BdC) |
 | `regles.py` | Règles de couleur des lignes |
+| `budgets.py` | Calcul des situations budgétaires (budget, DA, BdC, disponible, alertes) |
 | `mail.py` | E-mail de demande de commande au service achat |
 | `excel_io.py` | Import / export Excel, en-têtes de colonnes reconnus |
 | `templates/` | Pages HTML (Jinja2 + Bootstrap) |

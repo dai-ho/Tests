@@ -12,13 +12,16 @@ from flask import (Flask, flash, redirect, render_template, request, send_file, 
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
+import budgets
 import excel_io
 import mail
 import regles
-from models import STATUTS_DA, Commande, DemandeAchat, Marche, PosteCommande, PosteDA, db
+from models import (STATUTS_DA, TYPES_BUDGET, BudgetAnnuel, Commande, DemandeAchat,
+                    LigneBudgetaire, Marche, PosteCommande, PosteDA, db)
 
 # Pages sur lesquelles s'applique le filtre année / projet
-PAGES_FILTREES = {"accueil", "liste_da", "postes_da", "liste_commandes", "postes_commande"}
+PAGES_FILTREES = {"accueil", "liste_da", "postes_da", "liste_commandes", "postes_commande",
+                  "liste_budgets"}
 
 DOSSIER = os.path.dirname(os.path.abspath(__file__))
 DOSSIER_DONNEES = os.path.join(DOSSIER, "donnees")
@@ -119,7 +122,8 @@ def create_app(db_uri=None):
         annees = set(valeurs_distinctes(PosteDA.annee)) | {date.today().year}
         return {"filtre_actif": True, "filtre_annee": annee, "filtre_projet": projet,
                 "filtre_annees": sorted(annees, reverse=True),
-                "filtre_projets": valeurs_distinctes(PosteDA.projet)}
+                "filtre_projets": sorted(set(valeurs_distinctes(PosteDA.projet))
+                                         | set(valeurs_distinctes(LigneBudgetaire.projet)))}
 
     enregistrer_routes(app)
     return app
@@ -221,9 +225,24 @@ def controle_marche(marche, montant, sauf_poste=None, sauf_commande=None):
     return None
 
 
+def alerte_budget(poste_da):
+    """Avertit (sans bloquer) si les DA ou les BdC dépassent le budget de la ligne."""
+    if poste_da is not None:
+        message = budgets.controle(poste_da.code_imputation, poste_da.annee)
+        if message:
+            flash(message, "warning")
+
+
 def valeurs_distinctes(colonne):
     """Valeurs déjà saisies, proposées en suggestion dans les formulaires."""
     return [v for (v,) in db.session.query(colonne).distinct().order_by(colonne) if v]
+
+
+def situations_annee(annee, projet="", alertes=False):
+    """Situation des lignes budgétaires pour une année (seulement celles en alerte si demandé)."""
+    ag = budgets.agregats()
+    s = [budgets.situation(l, annee, ag) for l in budgets.lignes_filtrees(projet)]
+    return [x for x in s if x["alertes"]] if alertes else s
 
 
 def synthese_budgetaire(postes_da):
@@ -271,6 +290,8 @@ def enregistrer_routes(app):
                                                for p in c.postes)],
             marches_alerte=[m for m in Marche.query.order_by(Marche.reference)
                             if not m.expire and m.taux is not None and m.taux >= 90],
+            budgets_alerte=situations_annee(annee or date.today().year, projet, alertes=True),
+            annee_budget=annee or date.today().year,
         )
 
     # --- Demandes d'achat -----------------------------------------------------
@@ -339,7 +360,8 @@ def enregistrer_routes(app):
             reprise["annee"] = reprise["annee"] or date.today().year
             poste = PosteDA(numero=dernier + 10, statut="", **reprise)
         suggestions = {"projets": valeurs_distinctes(PosteDA.projet),
-                       "centres": valeurs_distinctes(PosteDA.code_imputation)}
+                       "centres": sorted(set(valeurs_distinctes(PosteDA.code_imputation))
+                                         | set(valeurs_distinctes(LigneBudgetaire.code)))}
 
         def afficher():
             return render_template("poste_da_form.html", da=da, poste=poste,
@@ -364,6 +386,7 @@ def enregistrer_routes(app):
             if poste_id is None:
                 da.postes.append(poste)
             if enregistrer("Poste enregistré.", f"Le poste {poste.numero} existe déjà."):
+                alerte_budget(poste)
                 if "continuer" in request.form:
                     return redirect(url_for("form_poste_da", da_id=da.id))
                 return redirect(url_for("detail_da", da_id=da.id))
@@ -441,6 +464,7 @@ def enregistrer_routes(app):
         db.session.commit()
         flash("BdC créé. Envoyez la demande au service achat ; vous saisirez le n° de BdC "
               "quand il vous sera communiqué.", "success")
+        alerte_budget(cmd.postes[0].poste_da)
         return redirect(url_for("mail_commande", cmd_id=cmd.id))
 
     @app.route("/commandes/<int:cmd_id>/modifier", methods=["GET", "POST"])
@@ -534,6 +558,7 @@ def enregistrer_routes(app):
             if poste_id is None:
                 cmd.postes.append(poste)
             if enregistrer("Poste enregistré.", f"Le poste {poste.numero} existe déjà."):
+                alerte_budget(poste.poste_da)
                 if "continuer" in request.form:
                     return redirect(url_for("form_poste_commande", cmd_id=cmd.id))
                 return redirect(url_for("detail_commande", cmd_id=cmd.id))
@@ -677,6 +702,115 @@ def enregistrer_routes(app):
         return render_template("parametres.html", definitions=mail.PARAMETRES,
                                valeurs=mail.parametres())
 
+    # --- Budgets ---------------------------------------------------------------
+
+    @app.route("/budgets")
+    def liste_budgets():
+        annee, projet = filtre_courant()
+        annee = annee or date.today().year
+        lignes = budgets.lignes_filtrees(projet)
+        ag = budgets.agregats()
+        annees = budgets.annees_affichees()
+        return render_template(
+            "budget_liste.html", annee=annee, annees=annees,
+            situations=[budgets.situation(l, annee, ag) for l in lignes],
+            matrice=[(l, [budgets.situation(l, a, ag) for a in annees]) for l in lignes],
+            orphelins=budgets.codes_sans_ligne(annee), types=TYPES_BUDGET)
+
+    @app.route("/budgets/lignes/nouvelle", methods=["GET", "POST"])
+    @app.route("/budgets/lignes/<int:ligne_id>/modifier", methods=["GET", "POST"])
+    def form_ligne_budget(ligne_id=None):
+        ligne = db.get_or_404(LigneBudgetaire, ligne_id) if ligne_id else LigneBudgetaire(
+            code=request.args.get("code"), type="structure")
+        if request.method == "POST":
+            ligne.code = champ("code")
+            ligne.libelle = champ("libelle")
+            ligne.type = champ("type") if champ("type") in TYPES_BUDGET else "structure"
+            ligne.projet = champ("projet")
+            ligne.commentaire = champ("commentaire")
+            if ligne_id is None:
+                db.session.add(ligne)
+            if enregistrer("Ligne budgétaire enregistrée.",
+                           f"La ligne budgétaire {ligne.code} existe déjà."):
+                return redirect(url_for("detail_ligne_budget", ligne_id=ligne.id))
+            if ligne_id:
+                ligne = db.session.get(LigneBudgetaire, ligne_id)
+        return render_template("budget_ligne_form.html", ligne=ligne, types=TYPES_BUDGET,
+                               projets=valeurs_distinctes(PosteDA.projet))
+
+    @app.route("/budgets/lignes/<int:ligne_id>")
+    def detail_ligne_budget(ligne_id):
+        ligne = db.get_or_404(LigneBudgetaire, ligne_id)
+        ag = budgets.agregats()
+        annees = sorted({b.annee for b in ligne.annees}
+                        | {p.annee for p in PosteDA.query if p.annee
+                           and budgets.cle(p.code_imputation) == budgets.cle(ligne.code)}
+                        | {date.today().year})
+        postes = [p for p in tous_les_postes_da()
+                  if budgets.cle(p.code_imputation) == budgets.cle(ligne.code)]
+        return render_template("budget_ligne_detail.html", ligne=ligne, types=TYPES_BUDGET,
+                               situations=[budgets.situation(ligne, a, ag) for a in annees],
+                               postes=sorted(postes, key=lambda p: (-(p.annee or 0), p.cle)),
+                               annee_suivante=date.today().year + 1)
+
+    @app.post("/budgets/lignes/<int:ligne_id>/supprimer")
+    def supprimer_ligne_budget(ligne_id):
+        ligne = db.get_or_404(LigneBudgetaire, ligne_id)
+        db.session.delete(ligne)
+        db.session.commit()
+        flash(f"Ligne budgétaire {ligne.code} supprimée (les DA ne sont pas modifiées).", "success")
+        return redirect(url_for("liste_budgets"))
+
+    @app.post("/budgets/lignes/<int:ligne_id>/annee")
+    def enregistrer_budget_annuel(ligne_id):
+        """Ajout ou mise à jour du budget d'une année (demande, allocation, report)."""
+        ligne = db.get_or_404(LigneBudgetaire, ligne_id)
+        try:
+            annee = champ_entier("annee")
+            valeurs = {c: champ_montant(c) for c in ("montant_demande", "montant_alloue", "report")}
+        except ValueError:
+            flash("Valeur numérique invalide.", "danger")
+            return redirect(url_for("detail_ligne_budget", ligne_id=ligne_id))
+        if not annee:
+            flash("Indiquez l'année.", "danger")
+            return redirect(url_for("detail_ligne_budget", ligne_id=ligne_id))
+        b = ligne.budget(annee)
+        if b is None:
+            b = BudgetAnnuel(annee=annee)
+            ligne.annees.append(b)
+        for c, v in valeurs.items():
+            setattr(b, c, v)
+        b.commentaire = champ("commentaire")
+        db.session.commit()
+        flash(f"Budget {annee} de la ligne {ligne.code} enregistré.", "success")
+        return redirect(url_for("detail_ligne_budget", ligne_id=ligne_id))
+
+    @app.post("/budgets/annuel/<int:budget_id>/supprimer")
+    def supprimer_budget_annuel(budget_id):
+        b = db.get_or_404(BudgetAnnuel, budget_id)
+        ligne_id = b.ligne_id
+        db.session.delete(b)
+        db.session.commit()
+        flash(f"Budget {b.annee} supprimé.", "success")
+        return redirect(url_for("detail_ligne_budget", ligne_id=ligne_id))
+
+    @app.post("/budgets/lignes/<int:ligne_id>/reporter/<int:annee>")
+    def reporter_budget(ligne_id, annee):
+        """Report du disponible de l'année sur l'année suivante (lignes projet)."""
+        ligne = db.get_or_404(LigneBudgetaire, ligne_id)
+        s = budgets.situation(ligne, annee)
+        if not ligne.reportable or s["budget"] is None or s["disponible"] <= 0:
+            flash("Rien à reporter.", "warning")
+        else:
+            suivant = ligne.budget(annee + 1)
+            if suivant is None:
+                suivant = BudgetAnnuel(annee=annee + 1)
+                ligne.annees.append(suivant)
+            suivant.report = round(s["disponible"], 2)
+            db.session.commit()
+            flash(f"{eur(s['disponible'])} reportés de {annee} sur {annee + 1}.", "success")
+        return redirect(url_for("detail_ligne_budget", ligne_id=ligne_id))
+
     # --- Excel ----------------------------------------------------------------
 
     @app.route("/import", methods=["GET", "POST"])
@@ -690,7 +824,7 @@ def enregistrer_routes(app):
             try:
                 nb_da, nb_cmd, erreurs, onglets = excel_io.importer(
                     fichier, vider="vider" in request.form,
-                    avec_marches="avec_marches" in request.form)
+                    avec_referentiels="avec_referentiels" in request.form)
             except Exception as e:  # fichier illisible, onglets absents...
                 db.session.rollback()
                 flash(f"Import impossible : {e}", "danger")

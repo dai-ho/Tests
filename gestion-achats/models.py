@@ -138,6 +138,65 @@ class PosteDA(db.Model):
         return f"{self.cle} ({k_euros(self.montant)})"
 
 
+TYPES_BUDGET = {
+    "structure": "Structure : à consommer dans l'année, perdu sinon",
+    "projet": "Projet : reliquat reportable sur l'année suivante",
+}
+
+
+class LigneBudgetaire(db.Model):
+    """Ligne budgétaire allouée, identifiée par un code (ex. 23T_0531, C_MMX/20) : c'est le
+    « centre de coût » des postes de DA qui la consomment."""
+    __tablename__ = "ligne_budgetaire"
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(50), unique=True, nullable=False)
+    libelle = db.Column(db.String(255))
+    type = db.Column(db.String(20), nullable=False, default="structure")
+    projet = db.Column(db.String(100))
+    commentaire = db.Column(db.Text)
+
+    annees = db.relationship("BudgetAnnuel", back_populates="ligne",
+                             cascade="all, delete-orphan", order_by="BudgetAnnuel.annee")
+
+    @property
+    def reportable(self):
+        return self.type == "projet"
+
+    def budget(self, annee):
+        return next((b for b in self.annees if b.annee == annee), None)
+
+
+class BudgetAnnuel(db.Model):
+    """Budget d'une ligne pour une année : demandé (en N-1), puis alloué à la confirmation,
+    plus un éventuel report de l'année précédente (lignes projet)."""
+    __tablename__ = "budget_annuel"
+    __table_args__ = (db.UniqueConstraint("ligne_id", "annee"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    ligne_id = db.Column(db.Integer, db.ForeignKey("ligne_budgetaire.id"), nullable=False)
+    annee = db.Column(db.Integer, nullable=False)
+    montant_demande = db.Column(db.Float)
+    montant_alloue = db.Column(db.Float)        # vide tant que la demande n'est pas confirmée
+    report = db.Column(db.Float)
+    commentaire = db.Column(db.Text)
+
+    ligne = db.relationship("LigneBudgetaire", back_populates="annees")
+
+    @property
+    def confirme(self):
+        return self.montant_alloue is not None
+
+    @property
+    def montant(self):
+        """Montant de référence : l'alloué s'il est confirmé, sinon le demandé (envisagé)."""
+        return self.montant_alloue if self.confirme else (self.montant_demande or 0)
+
+    @property
+    def total(self):
+        return self.montant + (self.report or 0)
+
+
 class Commande(db.Model):
     __tablename__ = "commande"
 

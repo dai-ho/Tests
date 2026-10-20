@@ -1,0 +1,5 @@
+{# Pastille du type de ligne budgétaire : variable `s.ligne` ou `ligne` #}
+{% set l = s.ligne if s is defined and s else ligne %}
+{% if l.reportable %}<span class="badge bg-info text-dark" title="Reliquat reportable sur l'année suivante">projet</span>
+{% else %}<span class="badge bg-secondary" title="À consommer dans l'année, perdu sinon">structure</span>{% endif %}
+{% if l.projet %}<div class="small text-muted">{{ l.projet }}</div>{% endif %}
