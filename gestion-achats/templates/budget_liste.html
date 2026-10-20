@@ -16,7 +16,7 @@
 <div class="table-responsive"><table class="table table-hover align-middle">
   <thead><tr>
     <th>Ligne</th><th>Type</th><th class="num">Budget</th><th class="num">DA (prévu)</th><th class="num">Reste à programmer</th>
-    <th class="num">BdC (imputé)</th><th class="num">Disponible</th><th>Consommation</th><th>Alertes</th>
+    <th class="num">BdC (imputé)</th><th class="num">Disponible</th><th>Consommation</th><th>Alertes</th><th></th>
   </tr></thead>
   <tbody>
   {% for s in situations %}
@@ -28,15 +28,20 @@
       {{ macros.montant(s.prevu) }}{{ macros.montant(s.reste_da, true) }}{{ macros.montant(s.impute) }}{{ macros.montant(s.disponible, true) }}
       <td style="min-width: 9rem">{% include "_barre_budget.html" %}</td>
       <td>{% for niveau, texte in s.alertes %}<span class="badge bg-{{ niveau }}{{ ' text-dark' if niveau in ('warning', 'info') }} me-1">{{ texte }}</span>{% endfor %}</td>
+      <td class="actions">
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('detail_ligne_budget', ligne_id=s.ligne.id) }}">Ouvrir</a>
+        {{ macros.bouton_supprimer(url_for('supprimer_ligne_budget', ligne_id=s.ligne.id),
+             'Supprimer la ligne ' ~ s.ligne.code ~ ' et tous ses budgets annuels ? Les DA et BdC ne sont pas modifiés.') }}
+      </td>
     </tr>
-  {% else %}<tr><td colspan="9" class="text-muted">Aucune ligne budgétaire. Créez-en une, ou partez des centres de coût listés plus bas.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="10" class="text-muted">Aucune ligne budgétaire. Créez-en une, ou partez des centres de coût listés plus bas.</td></tr>{% endfor %}
   </tbody>
   {% if situations %}
   {% set budgetes = situations|selectattr('budget')|list %}
   <tfoot class="fw-bold"><tr><td colspan="2">Total</td>
     {{ macros.montant(budgetes|sum(attribute='total')) }}{{ macros.montant(situations|sum(attribute='prevu')) }}
     {{ macros.montant(budgetes|sum(attribute='reste_da'), true) }}{{ macros.montant(situations|sum(attribute='impute')) }}
-    {{ macros.montant(budgetes|sum(attribute='disponible'), true) }}<td colspan="2"></td></tr></tfoot>
+    {{ macros.montant(budgetes|sum(attribute='disponible'), true) }}<td colspan="3"></td></tr></tfoot>
   {% endif %}
 </table></div>
 

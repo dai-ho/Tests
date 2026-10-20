@@ -29,7 +29,7 @@
     <tr class="{{ 'table-primary' if s.annee == aujourdhui.year }}">
       <td><strong>{{ s.annee }}</strong>{% if b and not b.confirme %} <span class="badge bg-warning text-dark">demandé</span>{% endif %}
         {% if b and b.commentaire %}<div class="small text-muted">{{ b.commentaire }}</div>{% endif %}</td>
-      {{ macros.montant(b.montant_demande if b) }}{{ macros.montant(b.montant_alloue if b) }}{{ macros.montant(b.report if b) }}
+      {{ macros.montant(b.montant_demande if b else none) }}{{ macros.montant(b.montant_alloue if b else none) }}{{ macros.montant(b.report if b else none) }}
       <td class="num fw-bold">{{ s.total|euros if b else '—' }}</td>
       {{ macros.montant(s.prevu) }}{{ macros.montant(s.impute) }}{{ macros.montant(s.disponible, true) }}
       <td style="min-width: 9rem">{% include "_barre_budget.html" %}</td>

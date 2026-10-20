@@ -9,6 +9,7 @@ from datetime import date, datetime
 
 from flask import (Flask, flash, redirect, render_template, request, send_file, session,
                    url_for)
+from jinja2 import Undefined
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
@@ -90,14 +91,14 @@ def create_app(db_uri=None):
 
     @app.template_filter("euros")
     def euros(v):
-        if v is None:
+        if v is None or isinstance(v, Undefined):
             return ""
         return f"{v:,.2f} €".replace(",", " ").replace(".", ",")
 
     @app.template_filter("saisie")
     def saisie(v):
         """Montant pour un champ de formulaire : 24000 ou 1500,5."""
-        if v is None:
+        if v is None or isinstance(v, Undefined):
             return ""
         return f"{v:.2f}".rstrip("0").rstrip(".").replace(".", ",")
 
