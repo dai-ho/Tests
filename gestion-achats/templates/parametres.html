@@ -15,4 +15,16 @@
   {% endfor %}
   <div><button class="btn btn-primary">Enregistrer</button></div>
 </form>
+
+<h3 class="mt-5">Application</h3>
+<div class="card card-body" style="max-width: 45rem">
+  <p class="mb-2">Adresse : <a href="{{ request.host_url }}">{{ request.host_url }}</a> (à mettre en favori).</p>
+  <p class="small text-muted">Lancement automatique à l'ouverture de session : double-cliquer sur
+    <code>demarrage_auto_activer.bat</code> dans le dossier de l'application (<code>demarrage_auto_desactiver.bat</code> pour revenir en arrière).
+    En arrière-plan, les erreurs sont écrites dans <code>donnees\application.log</code> et une sauvegarde de la base est faite
+    chaque jour dans <code>donnees\sauvegardes</code>.</p>
+  <form method="post" action="{{ url_for('arreter') }}" data-confirmer="Arrêter l'application ?">
+    <button class="btn btn-outline-danger">Arrêter l'application</button>
+  </form>
+</div>
 {% endblock %}

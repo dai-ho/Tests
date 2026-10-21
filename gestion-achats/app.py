@@ -1,7 +1,11 @@
 """Gestion des Demandes d'Achat et des Bons de Commande — application web locale."""
+import glob
+import logging
 import os
 import shutil
+import socket
 import sqlite3
+import sys
 import threading
 import webbrowser
 from collections import defaultdict
@@ -27,6 +31,8 @@ PAGES_FILTREES = {"accueil", "liste_da", "postes_da", "liste_commandes", "postes
 DOSSIER = os.path.dirname(os.path.abspath(__file__))
 DOSSIER_DONNEES = os.path.join(DOSSIER, "donnees")
 FICHIER_BASE = os.path.join(DOSSIER_DONNEES, "achats.db")
+FICHIER_JOURNAL = os.path.join(DOSSIER_DONNEES, "application.log")
+SAUVEGARDES_GARDEES = 30
 
 
 def mettre_de_cote_base_obsolete(chemin):
@@ -844,13 +850,71 @@ def enregistrer_routes(app):
         return send_file(excel_io.exporter(), as_attachment=True,
                          download_name=f"Budgets_{date.today():%Y%m%d}.xlsx")
 
+    @app.post("/arreter")
+    def arreter():
+        """Arrête l'application (utile quand elle tourne en arrière-plan, sans fenêtre)."""
+        threading.Timer(0.5, lambda: os._exit(0)).start()
+        return render_template("erreur.html", message="L'application est arrêtée. Pour la relancer : "
+                               "lancer.bat, ou ouvrir une nouvelle session Windows si le démarrage "
+                               "automatique est activé.")
+
     @app.errorhandler(404)
     def introuvable(_):
         return render_template("erreur.html", message="Page introuvable."), 404
 
 
+def port_occupe(port):
+    """Vrai si l'application (ou un autre programme) écoute déjà sur ce port."""
+    with socket.socket() as s:
+        s.settimeout(0.5)
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def sauvegarde_quotidienne():
+    """Copie de la base une fois par jour dans donnees/sauvegardes (30 dernières gardées)."""
+    if not os.path.exists(FICHIER_BASE):
+        return
+    dossier = os.path.join(DOSSIER_DONNEES, "sauvegardes")
+    os.makedirs(dossier, exist_ok=True)
+    cible = os.path.join(dossier, f"achats_{date.today():%Y%m%d}.db")
+    if not os.path.exists(cible):
+        source, copie = sqlite3.connect(FICHIER_BASE), sqlite3.connect(cible)
+        source.backup(copie)  # copie cohérente même si la base est en cours d'utilisation
+        copie.close()
+        source.close()
+    for ancienne in sorted(glob.glob(os.path.join(dossier, "achats_" + "[0-9]" * 8 + ".db")))[
+            :-SAUVEGARDES_GARDEES]:
+        os.remove(ancienne)
+
+
+def journaliser_dans_fichier():
+    """Sans fenêtre (pythonw), les messages et erreurs vont dans donnees/application.log."""
+    os.makedirs(DOSSIER_DONNEES, exist_ok=True)
+    if os.path.exists(FICHIER_JOURNAL) and os.path.getsize(FICHIER_JOURNAL) > 5_000_000:
+        os.replace(FICHIER_JOURNAL, FICHIER_JOURNAL + ".1")
+    journal = open(FICHIER_JOURNAL, "a", encoding="utf-8", buffering=1)
+    sys.stdout = sys.stderr = journal
+    print(f"--- Démarrage {datetime.now():%d/%m/%Y %H:%M:%S}")
+    logging.getLogger("werkzeug").setLevel(logging.WARNING)  # pas une ligne par page vue
+
+
 if __name__ == "__main__":
+    # --arriere-plan : lancement automatique à l'ouverture de session, sans ouvrir le navigateur
+    arriere_plan = "--arriere-plan" in sys.argv
     port = int(os.environ.get("PORT", 5000))
-    if not os.environ.get("NO_BROWSER"):
-        threading.Timer(1.0, lambda: webbrowser.open(f"http://127.0.0.1:{port}")).start()
-    create_app().run(host="127.0.0.1", port=port, debug=False)
+    url = f"http://127.0.0.1:{port}"
+    if port_occupe(port):
+        # Déjà lancée : on se contente d'ouvrir le navigateur
+        if not arriere_plan:
+            webbrowser.open(url)
+        sys.exit(0)
+    if arriere_plan or sys.stdout is None:  # sys.stdout est None avec pythonw.exe
+        journaliser_dans_fichier()
+    if not arriere_plan and not os.environ.get("NO_BROWSER"):
+        threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+    application = create_app()
+    try:
+        sauvegarde_quotidienne()
+    except Exception as e:  # une sauvegarde ratée ne doit pas empêcher le démarrage
+        print(f"Sauvegarde quotidienne impossible : {e}")
+    application.run(host="127.0.0.1", port=port, debug=False)

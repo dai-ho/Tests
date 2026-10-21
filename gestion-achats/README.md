@@ -10,9 +10,21 @@ Elle ne nécessite aucun serveur et aucune donnée ne quitte le PC.
 2. Double-cliquer sur **`lancer.bat`**.
    Au premier lancement, un environnement Python local (`.venv`) est créé et les dépendances
    sont installées (une à deux minutes). Le navigateur s'ouvre ensuite sur <http://127.0.0.1:5000>.
-3. Pour arrêter : fermer la fenêtre noire.
+3. Pour arrêter : `arreter.bat` (l'application tourne sans fenêtre).
 
 Pour reprendre l'existant : menu **Importer Excel**, puis choisir le fichier actuel.
+
+## Lancement automatique en arrière-plan (sans droits administrateur)
+
+- **`demarrage_auto_activer.bat`** : l'application démarre sans fenêtre à chaque ouverture de session
+  (raccourci dans le dossier « Démarrage » de l'utilisateur) et un raccourci « Budgets DA-BdC » est créé
+  sur le Bureau. Elle est lancée immédiatement.
+- **`demarrage_auto_desactiver.bat`** : retire ces raccourcis.
+- **`arreter.bat`** (ou *Paramètres > Arrêter l'application*) : arrête l'application.
+- **`lancer_console.bat`** : lancement dans une fenêtre, pour voir les messages en cas de problème.
+- Une seule instance tourne à la fois : relancer l'application ouvre simplement le navigateur.
+- Sans fenêtre, les messages et erreurs sont écrits dans `donnees/application.log`, et une copie de la
+  base est faite chaque jour dans `donnees/sauvegardes` (30 dernières conservées).
 
 ## Fonctionnalités
 

@@ -1,5 +1,5 @@
 @echo off
-rem Lance l'application de gestion des achats (DA / Commandes).
+rem Lance l'application de gestion des achats (DA / BdC), sans fenetre.
 rem Premier lancement : cree un environnement Python local et installe les dependances.
 cd /d "%~dp0"
 
@@ -32,9 +32,6 @@ if not exist ".venv\installation.ok" (
     echo ok> ".venv\installation.ok"
 )
 
-echo.
-echo Application disponible sur http://127.0.0.1:5000
-echo Fermez cette fenetre pour arreter l'application.
-echo.
-".venv\Scripts\python.exe" app.py
-pause
+rem Lancement sans fenetre (pythonw) : le navigateur s'ouvre ; si l'application tourne deja,
+rem seul le navigateur est ouvert. Pour l'arreter : arreter.bat ou Parametres.
+start "" ".venv\Scripts\pythonw.exe" app.py
