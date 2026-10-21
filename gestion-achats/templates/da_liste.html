@@ -15,7 +15,7 @@
   </tr></thead>
   <tbody>
   {% for l in lignes %}{% set da = l.da %}
-    <tr style="{{ '--bs-table-bg: #DBEEF4' if not da.reference }}">
+    <tr style="{{ '--bs-table-bg: var(--ligne-en-attente)' if not da.reference }}">
       <td><a href="{{ url_for('detail_da', da_id=da.id) }}"><strong>{{ da.libelle }}</strong></a></td>
       <td>{{ l.postes|map(attribute='projet')|select|unique|join(', ') }}</td>
       <td>{{ l.postes|map(attribute='annee')|select|unique|sort|join(', ') }}</td>

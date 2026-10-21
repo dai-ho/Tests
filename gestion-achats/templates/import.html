@@ -41,7 +41,7 @@ Un <a href="{{ url_for('export_excel') }}">export</a> produit un fichier au mêm
 <div class="row">
   {% for titre, colonnes in [("Onglet Suivi DA", colonnes_da), ("Onglet Suivi BdC", colonnes_cmd), ("Onglet Marchés", colonnes_marche)] %}
   <div class="col-lg-6"><h6>{{ titre }}</h6>
-    <table class="table table-sm bg-white"><thead><tr><th>Colonne</th><th>En-têtes acceptés</th></tr></thead><tbody>
+    <table class="table table-sm"><thead><tr><th>Colonne</th><th>En-têtes acceptés</th></tr></thead><tbody>
       {% for cle, noms in colonnes.items() %}<tr><td>{{ noms[0] }}</td><td class="small">{{ noms|join(' · ') }}</td></tr>{% endfor %}
     </tbody></table></div>
   {% endfor %}

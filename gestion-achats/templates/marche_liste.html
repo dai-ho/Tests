@@ -15,7 +15,7 @@
   </tr></thead>
   <tbody>
   {% for m in marches %}
-    <tr style="{{ '--bs-table-bg: #D9D9D9' if m.expire }}">
+    <tr style="{{ '--bs-table-bg: var(--ligne-clos)' if m.expire }}">
       <td><a href="{{ url_for('detail_marche', marche_id=m.id) }}"><strong>{{ m.reference }}</strong></a></td>
       <td>{{ m.titulaire or '' }}</td><td>{{ m.liste_lots|join(', ') }}{% if m.simplifie %} <span class="badge bg-info text-dark">simplifié</span>{% endif %}</td>
       <td data-valeur="{{ m.date_echeance or '' }}">{{ m.date_echeance|date_fr }}{% if m.expire %} <span class="badge bg-secondary">échu</span>{% endif %}</td>

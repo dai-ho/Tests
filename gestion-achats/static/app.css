@@ -1,22 +1,106 @@
-body { background: #f4f6f9; }
-.navbar-brand { font-weight: 600; }
-.table-responsive { background: #fff; border-radius: .5rem; }
-table.table { margin-bottom: 0; font-size: .9rem; }
+/* Thème sombre et sobre, posé sur le mode sombre natif de Bootstrap 5.3 (data-bs-theme="dark"). */
+
+[data-bs-theme="dark"] {
+  /* Fonds et textes */
+  --fond: #15181c;
+  --surface: #1c2025;
+  --surface-haute: #232830;
+  --bordure: #2c3239;
+  --texte: #d3d8de;
+  --texte-attenue: #a3acb6;
+  --accent: #4f7cab;
+  --accent-survol: #5e8bba;
+
+  --bs-body-bg: var(--fond);
+  --bs-body-color: var(--texte);
+  --bs-secondary-color: var(--texte-attenue);
+  --bs-tertiary-bg: var(--surface);
+  --bs-border-color: var(--bordure);
+  --bs-link-color: #8fb0d3;
+  --bs-link-color-rgb: 143, 176, 211;
+  --bs-link-hover-color: #b6cde6;
+  --bs-link-hover-color-rgb: 182, 205, 230;
+  --bs-heading-color: #e4e8ed;
+
+  /* Couleurs d'état désaturées (badges, jauges, textes d'alerte) */
+  --bs-primary-rgb: 79, 124, 171;
+  --bs-success-rgb: 74, 154, 106;
+  --bs-warning-rgb: 212, 167, 44;
+  --bs-danger-rgb: 217, 99, 95;
+  --bs-info-rgb: 90, 162, 184;
+  --bs-secondary-rgb: 90, 98, 107;
+
+  /* Couleurs de lignes (transposition des couleurs Excel) */
+  --ligne-supprime: #383b40;
+  --ligne-clos: #2b2f34;
+  --ligne-en-attente: #1d3340;
+  --ligne-alerte: #3d3a1a;
+  --ligne-annee-impaire: #1f2b22;
+  --ligne-annee-paire: #2f251d;
+}
+
+body { background: var(--fond); font-size: .95rem; }
+h3, h4, h5, h6 { font-weight: 500; letter-spacing: .01em; }
+
+/* Barre de navigation */
+.barre-principale { background: #0f1215; border-bottom: 1px solid var(--bordure); padding-top: .35rem; padding-bottom: .35rem; }
+.barre-principale .navbar-brand { color: #e6eaef; font-weight: 600; letter-spacing: .02em; }
+.barre-principale .nav-link { color: #9aa4ae; border-bottom: 2px solid transparent; }
+.barre-principale .nav-link:hover { color: #dfe4ea; }
+.barre-principale .nav-link.active { color: #f0f3f6; border-bottom-color: var(--accent); }
+.barre-principale .btn-link.nav-link { text-decoration: none; }
+
+/* Boutons */
+.btn-primary { --bs-btn-bg: var(--accent); --bs-btn-border-color: var(--accent);
+  --bs-btn-hover-bg: var(--accent-survol); --bs-btn-hover-border-color: var(--accent-survol);
+  --bs-btn-active-bg: #446d97; --bs-btn-active-border-color: #446d97;
+  --bs-btn-disabled-bg: #3a4f66; --bs-btn-disabled-border-color: #3a4f66; }
+.btn-outline-primary { --bs-btn-color: #8fb0d3; --bs-btn-border-color: #3d5f82;
+  --bs-btn-hover-color: #e6eef6; --bs-btn-hover-bg: #2b4561; --bs-btn-hover-border-color: #4f7cab;
+  --bs-btn-active-bg: #2b4561; --bs-btn-active-border-color: #4f7cab; }
+.btn-success { --bs-btn-bg: #3d7a57; --bs-btn-border-color: #3d7a57;
+  --bs-btn-hover-bg: #468a63; --bs-btn-hover-border-color: #468a63; }
+.btn-outline-danger { --bs-btn-color: #d9776f; --bs-btn-border-color: #6b3a38;
+  --bs-btn-hover-bg: #5a2e2c; --bs-btn-hover-border-color: #a3524e; --bs-btn-hover-color: #f2d6d4; }
+.btn-outline-success { --bs-btn-color: #7cc39a; --bs-btn-border-color: #3d6b51;
+  --bs-btn-hover-bg: #2f5340; --bs-btn-hover-border-color: #4a9a6a; }
+
+/* Surfaces : cartes, tableaux, bandeau de filtre, pop-up */
+.card { --bs-card-bg: var(--surface); --bs-card-border-color: var(--bordure); }
+.table-responsive { background: var(--surface); border: 1px solid var(--bordure); border-radius: .4rem; }
+.table { --bs-table-bg: var(--surface); --bs-table-border-color: var(--bordure);
+  --bs-table-hover-bg: rgba(255, 255, 255, .045); margin-bottom: 0; font-size: .875rem; }
+.table > thead th { color: var(--texte-attenue); font-weight: 600; font-size: .78rem;
+  text-transform: uppercase; letter-spacing: .03em; border-bottom-color: #39414a; }
+.table > tfoot td { border-top: 1px solid #39414a; }
+.bandeau-filtre { background: var(--surface); border-bottom: 1px solid var(--bordure); }
+.bandeau-filtre select { width: auto; }
+dialog.dialogue { background: var(--surface); color: var(--texte); border: 1px solid var(--bordure);
+  border-radius: .5rem; padding: 1.5rem; width: min(60rem, 95vw); box-shadow: 0 .75rem 2.5rem rgba(0, 0, 0, .6); }
+dialog.dialogue::backdrop { background: rgba(0, 0, 0, .6); }
+.form-control, .form-select { --bs-body-bg: #12151a; }
+.progress { --bs-progress-bg: #2a3038; }
+.alert { --bs-alert-border-color: transparent; }
+
+/* Texte d'alerte (montants négatifs…) : plus clair que le rouge des badges, lisible sur toutes les lignes */
+.text-danger { color: #f0908a !important; }
+
+/* Tableaux : tri, alignements */
 th[data-tri] { cursor: pointer; user-select: none; white-space: nowrap; }
-th[data-tri]::after { content: " ⇅"; color: #adb5bd; }
-th[data-tri].asc::after { content: " ▲"; color: #212529; }
-th[data-tri].desc::after { content: " ▼"; color: #212529; }
-td.num, th.num { text-align: right; white-space: nowrap; }
+th[data-tri]::after { content: " ⇅"; color: #5b646e; }
+th[data-tri].asc::after { content: " ▲"; color: var(--texte); }
+th[data-tri].desc::after { content: " ▼"; color: var(--texte); }
+td.num, th.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 td.actions { white-space: nowrap; text-align: right; }
 td.actions form { display: inline; }
 .carte-stat .valeur { font-size: 1.8rem; font-weight: 600; }
-.legende span { display: inline-block; padding: .1rem .6rem; border-radius: .25rem; margin-right: .3rem; font-size: .8rem; }
-dialog.dialogue { border: none; border-radius: .5rem; padding: 1.5rem; width: min(60rem, 95vw); box-shadow: 0 .5rem 2rem rgba(0,0,0,.3); }
-dialog.dialogue::backdrop { background: rgba(0,0,0,.4); }
-.apercu-mail { font-family: Calibri, Arial, sans-serif; font-size: 11pt; background: #fff; border: 1px solid #dee2e6; border-radius: .375rem; padding: 1rem; margin: 0; }
+.legende span { display: inline-block; padding: .1rem .6rem; border-radius: .25rem; margin-right: .3rem;
+  font-size: .78rem; color: var(--texte); border: 1px solid var(--bordure) !important; }
+
+/* Aperçu de l'e-mail : rendu « papier », proche de ce que verra le destinataire */
+.apercu-mail { font-family: Calibri, Arial, sans-serif; font-size: 11pt; background: #f7f7f5; color: #1d1f22;
+  border: 1px solid var(--bordure); border-radius: .375rem; padding: 1rem; margin: 0; }
 .apercu-mail p { margin: 0 0 1em; }
 .tableau-mail { border-collapse: collapse; margin: 0 0 1em; }
 .tableau-mail td { padding: .1em 1.5em .1em 0; white-space: nowrap; }
 .tableau-mail td.num { text-align: right; }
-.bandeau-filtre { background: #fff; border-bottom: 1px solid #dee2e6; }
-.bandeau-filtre select { width: auto; }

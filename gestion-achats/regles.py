@@ -8,19 +8,21 @@ changer les dictionnaires COULEURS_* ; pour modifier une règle, changer la fonc
 from datetime import date
 
 # clé -> (couleur de fond, libellé affiché dans la légende)
+# Les teintes sont définies dans static/app.css (variables --ligne-…), adaptées au thème sombre ;
+# elles transposent les couleurs de la mise en forme conditionnelle du fichier Excel.
 COULEURS_DA = {
-    "supprime": ("#BFBFBF", "Statut « supprimé »"),
-    "clos": ("#D9D9D9", "Statut « clos »"),
-    "sans_numero": ("#DBEEF4", "N° de DA pas encore attribué"),
-    "non_impute": ("#FFFF00", "Rien d'imputé (aucun BdC)"),
-    "annee_impaire": ("#EBF1DE", "Année impaire"),
-    "annee_paire": ("#FDEADA", "Année paire"),
+    "supprime": ("var(--ligne-supprime)", "Statut « supprimé »"),
+    "clos": ("var(--ligne-clos)", "Statut « clos »"),
+    "sans_numero": ("var(--ligne-en-attente)", "N° de DA pas encore attribué"),
+    "non_impute": ("var(--ligne-alerte)", "Rien d'imputé (aucun BdC)"),
+    "annee_impaire": ("var(--ligne-annee-impaire)", "Année impaire"),
+    "annee_paire": ("var(--ligne-annee-paire)", "Année paire"),
 }
 
 COULEURS_CMD = {
-    "csf_ok": ("#BFBFBF", "CSF OK"),
-    "echeance_depassee": ("#FFFF00", "Échéance dépassée, CSF non faite"),
-    "en_attente": ("#DBEEF4", "N° de BdC en attente"),
+    "csf_ok": ("var(--ligne-clos)", "CSF OK"),
+    "echeance_depassee": ("var(--ligne-alerte)", "Échéance dépassée, CSF non faite"),
+    "en_attente": ("var(--ligne-en-attente)", "N° de BdC en attente"),
 }
 
 

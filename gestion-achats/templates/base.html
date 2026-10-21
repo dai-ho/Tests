@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="fr" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +9,7 @@
 </head>
 <body>
 {% set page = request.endpoint %}
-<nav class="navbar navbar-expand navbar-dark bg-primary {{ 'mb-4' if not filtre_actif }}">
+<nav class="navbar navbar-expand barre-principale {{ 'mb-4' if not filtre_actif }}">
   <div class="container-fluid">
     <a class="navbar-brand" href="{{ url_for('accueil') }}">Budgets DA / BdC</a>
     <ul class="navbar-nav me-auto">

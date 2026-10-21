@@ -16,7 +16,7 @@
   {% for c in cmds %}
     {% set a_certifier = c.postes|rejectattr('csf')|selectattr('date_livraison')|list %}
     {% set prochaine = (a_certifier|map(attribute='date_livraison')|min) if a_certifier else none %}
-    <tr style="{{ '--bs-table-bg: #BFBFBF' if c.postes and c.nb_certifies == c.postes|length else ('--bs-table-bg: #DBEEF4' if not c.reference) }}">
+    <tr style="{{ '--bs-table-bg: var(--ligne-clos)' if c.postes and c.nb_certifies == c.postes|length else ('--bs-table-bg: var(--ligne-en-attente)' if not c.reference) }}">
       <td><a href="{{ url_for('detail_commande', cmd_id=c.id) }}">{% if c.reference %}<strong>{{ c.reference }}</strong>{% else %}<em>N° en attente</em>{% endif %}</a></td>
       <td>{% if c.marche %}<a href="{{ url_for('detail_marche', marche_id=c.marche_id) }}">{{ c.marche.reference }}</a>{% if c.lot %}<div class="small text-muted">lot {{ c.lot }}</div>{% endif %}{% endif %}</td>
       <td>{{ c.societes|join(', ') }}</td>
@@ -24,7 +24,7 @@
       <td class="num">{{ c.postes|length }}</td>
       {{ macros.montant(c.montant_total) }}
       <td class="num">{{ c.nb_certifies }} / {{ c.postes|length }}</td>
-      <td data-valeur="{{ prochaine or '' }}" style="{{ 'background: #FFFF00' if prochaine and prochaine < aujourdhui }}">{{ prochaine|date_fr }}</td>
+      <td data-valeur="{{ prochaine or '' }}" style="{{ '--bs-table-bg: var(--ligne-alerte)' if prochaine and prochaine < aujourdhui }}">{{ prochaine|date_fr }}</td>
       <td class="actions">
         {% if not c.reference %}
         <a class="btn btn-sm btn-primary" href="{{ mailto(c) }}"
