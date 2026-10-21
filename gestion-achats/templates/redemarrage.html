@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block titre %}Redémarrage{% endblock %}
+{% block contenu %}
+<div class="card card-body mx-auto mt-4 text-center" style="max-width: 34rem">
+  <h3>{{ message }}</h3>
+  {% if relance %}
+    <p class="text-muted mb-0" id="etat">Redémarrage en cours…</p>
+    <script>
+      // Attend que la nouvelle instance réponde, puis recharge l'application
+      setTimeout(function attendre() {
+        fetch("{{ url_for('accueil') }}", { cache: "no-store" })
+          .then(() => (location.href = "{{ url_for('accueil') }}"))
+          .catch(() => setTimeout(attendre, 1000));
+      }, 2500);
+    </script>
+  {% else %}
+    <p class="text-muted mb-0">Relancez l'application pour prendre en compte ce changement.</p>
+  {% endif %}
+</div>
+{% endblock %}

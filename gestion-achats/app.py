@@ -5,22 +5,29 @@ import os
 import shutil
 import socket
 import sqlite3
+import subprocess
 import sys
 import threading
 import webbrowser
 from collections import defaultdict
 from datetime import date, datetime
 
-from flask import (Flask, flash, redirect, render_template, request, send_file, session,
+from flask import (Flask, flash, g, redirect, render_template, request, send_file, session,
                    url_for)
 from jinja2 import Undefined
-from sqlalchemy import inspect, text
+from sqlalchemy import event, inspect, text
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.pool import StaticPool
 
 import budgets
 import excel_io
 import mail
 import regles
+
+try:
+    import protection
+except ImportError:  # bibliothèque « cryptography » pas encore installée (relancer lancer.bat)
+    protection = None
 from models import (STATUTS_DA, TYPES_BUDGET, BudgetAnnuel, Commande, DemandeAchat,
                     LigneBudgetaire, Marche, PosteCommande, PosteDA, db)
 
@@ -82,18 +89,39 @@ def migrer():
                              "marche.id = marche_id AND instr(marche.lot, ';') = 0)"))
 
 
-def create_app(db_uri=None):
+def create_app(db_uri=None, dossier=None):
+    """`dossier` : dossier des données (par défaut donnees/) ; `db_uri` : base imposée (tests),
+    sans protection par carte."""
     app = Flask(__name__)
-    os.makedirs(DOSSIER_DONNEES, exist_ok=True)
-    if db_uri is None:
-        mettre_de_cote_base_obsolete(FICHIER_BASE)
-        db_uri = "sqlite:///" + FICHIER_BASE
-    app.config["SQLALCHEMY_DATABASE_URI"] = db_uri
-    app.config["SECRET_KEY"] = "application-locale"
+    dossier = dossier or DOSSIER_DONNEES
+    os.makedirs(dossier, exist_ok=True)
+    fichier_base = os.path.join(dossier, "achats.db")
+    coffre = protection.Coffre(dossier) if protection else None
+    protege = db_uri is None and os.path.exists(os.path.join(dossier, "achats.db.chiffre"))
+    app.config.update(DOSSIER_DONNEES=dossier, FICHIER_BASE=fichier_base, PROTEGE=protege,
+                      SECRET_KEY="application-locale")
+    app.extensions["coffre"] = coffre
+    if protege:
+        # Base chiffrée : déchiffrée en mémoire au déverrouillage par la carte
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite://"
+        if coffre:
+            app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"creator": coffre.creer_connexion,
+                                                       "poolclass": StaticPool}
+    else:
+        if db_uri is None:
+            mettre_de_cote_base_obsolete(fichier_base)
+            db_uri = "sqlite:///" + fichier_base
+        app.config["SQLALCHEMY_DATABASE_URI"] = db_uri
     db.init_app(app)
-    with app.app_context():
-        db.create_all()
-        migrer()
+    if not protege:
+        with app.app_context():
+            db.create_all()
+            migrer()
+    elif coffre:
+        with app.app_context():
+            # Chaque validation en base est aussitôt réécrite, chiffrée, sur le disque
+            event.listen(db.session, "after_commit", lambda _: coffre.enregistrer())
+        coffre.surveiller_carte()
 
     @app.template_filter("euros")
     def euros(v):
@@ -132,8 +160,146 @@ def create_app(db_uri=None):
                 "filtre_projets": sorted(set(valeurs_distinctes(PosteDA.projet))
                                          | set(valeurs_distinctes(LigneBudgetaire.projet)))}
 
+    @app.before_request
+    def controle_verrou():
+        if not app.config["PROTEGE"]:
+            return None
+        if coffre is None:
+            return render_template("erreur.html", message="La base est protégée par carte, mais la "
+                                   "bibliothèque de chiffrement n'est pas installée : relancez "
+                                   "lancer.bat."), 500
+        coffre.verrou.acquire()  # la surveillance de la carte attend la fin de la requête
+        g.verrou_pris = True
+        if coffre.deverrouille or request.endpoint in ("verrou", "deverrouiller", "static",
+                                                       "arreter"):
+            return None
+        return redirect(url_for("verrou", suivant=request.full_path))
+
+    @app.teardown_request
+    def liberer_verrou(_):
+        if g.pop("verrou_pris", False):
+            db.session.remove()
+            coffre.verrou.release()
+
+    @app.context_processor
+    def contexte_protection():
+        return {"base_protegee": app.config["PROTEGE"]}
+
     enregistrer_routes(app)
+    enregistrer_routes_protection(app)
     return app
+
+
+def relancer(app):
+    """Redémarre l'application (après activation ou retrait de la protection)."""
+    if not app.config.get("RELANCE_POSSIBLE"):
+        return  # tests : pas de processus à relancer
+    arguments = [a for a in sys.argv[1:] if a != "--relance"] + ["--relance"]
+    subprocess.Popen([sys.executable, os.path.abspath(sys.argv[0]), *arguments], cwd=DOSSIER,
+                     creationflags=0x00000008 | 0x00000200,  # DETACHED_PROCESS, NEW_PROCESS_GROUP
+                     close_fds=True)
+    threading.Timer(0.5, lambda: os._exit(0)).start()
+
+
+def enregistrer_routes_protection(app):
+    coffre = app.extensions["coffre"]
+
+    def ecran_redemarrage(message):
+        relancer(app)
+        return render_template("redemarrage.html", message=message,
+                               relance=app.config.get("RELANCE_POSSIBLE"))
+
+    @app.route("/verrou")
+    def verrou():
+        if not app.config["PROTEGE"] or coffre.deverrouille:
+            return redirect(url_for("accueil"))
+        return render_template("verrou.html", carte=protection.carte_presente(),
+                               raison=coffre.raison_verrouillage, enveloppes=coffre.enveloppes(),
+                               suivant=request.args.get("suivant", "/"))
+
+    @app.post("/deverrouiller")
+    def deverrouiller():
+        suivant = request.form.get("suivant", "/")
+        try:
+            coffre.deverrouiller()
+        except protection.ErreurProtection as e:
+            flash(f"Déverrouillage impossible : {e}.", "danger")
+            return redirect(url_for("verrou", suivant=suivant))
+        db.engine.dispose()  # la prochaine connexion sera la base qui vient d'être chargée
+        db.create_all()
+        migrer()
+        coffre.enregistrer()
+        return redirect(suivant if suivant.startswith("/") and not suivant.startswith("//")
+                        else url_for("accueil"))
+
+    @app.post("/verrouiller")
+    def verrouiller():
+        if app.config["PROTEGE"]:
+            db.session.remove()
+            coffre.verrouiller("verrouillage manuel")
+        return redirect(url_for("verrou"))
+
+    @app.post("/protection/activer")
+    def activer_protection():
+        if app.config["PROTEGE"] or protection is None:
+            return redirect(url_for("parametres"))
+        try:
+            certificat = next(c for c in protection.certificats_chiffrement()
+                              if c["empreinte"] == request.form.get("empreinte"))
+        except (StopIteration, protection.ErreurProtection):
+            flash("Certificat introuvable.", "danger")
+            return redirect(url_for("parametres"))
+        dossier = app.config["DOSSIER_DONNEES"]
+        autres = (glob.glob(os.path.join(dossier, "sauvegardes", "*.db"))
+                  + glob.glob(os.path.join(dossier, "achats_ancienne_*.db")))
+        db.session.remove()
+        db.engine.dispose()  # libère le fichier de la base pour pouvoir l'effacer
+        try:
+            erreurs = coffre.activer(app.config["FICHIER_BASE"], certificat, autres)
+        except protection.ErreurProtection as e:
+            flash(f"Protection non activée : {e}.", "danger")
+            return redirect(url_for("parametres"))
+        if erreurs:
+            flash("Sauvegardes restées en clair (à supprimer à la main) : " + ", ".join(erreurs),
+                  "warning")
+        return ecran_redemarrage("Protection activée : la base est désormais chiffrée. "
+                                 "L'application redémarre et vous demandera de la déverrouiller.")
+
+    @app.post("/protection/desactiver")
+    def desactiver_protection():
+        dossier = app.config["DOSSIER_DONNEES"]
+        db.session.remove()
+        try:
+            coffre.desactiver(app.config["FICHIER_BASE"],
+                              glob.glob(os.path.join(dossier, "sauvegardes", "*.db.chiffre")))
+        except protection.ErreurProtection as e:
+            flash(f"Impossible de retirer la protection : {e}.", "danger")
+            return redirect(url_for("parametres"))
+        return ecran_redemarrage("Protection retirée : la base est de nouveau en clair. "
+                                 "L'application redémarre.")
+
+    @app.post("/protection/certificat")
+    def ajouter_certificat():
+        try:
+            certificat = next(c for c in protection.certificats_chiffrement()
+                              if c["empreinte"] == request.form.get("empreinte"))
+            coffre.ajouter_certificat(certificat)
+            flash(f"Certificat « {certificat['sujet']} » (émis par {certificat['emetteur']}) "
+                  "associé à la base.", "success")
+        except StopIteration:
+            flash("Certificat introuvable.", "danger")
+        except protection.ErreurProtection as e:
+            flash(f"Certificat non associé : {e}.", "danger")
+        return redirect(url_for("parametres"))
+
+    @app.post("/protection/certificat/<empreinte>/retirer")
+    def retirer_certificat(empreinte):
+        try:
+            coffre.retirer_certificat(empreinte)
+            flash("Certificat retiré : il ne permet plus d'ouvrir la base.", "success")
+        except protection.ErreurProtection as e:
+            flash(f"{str(e)[:1].upper()}{str(e)[1:]}.", "danger")
+        return redirect(url_for("parametres"))
 
 
 # --- Lecture des formulaires -------------------------------------------------
@@ -706,8 +872,18 @@ def enregistrer_routes(app):
             mail.enregistrer_parametres(request.form)
             flash("Paramètres enregistrés.", "success")
             return redirect(url_for("parametres"))
+        coffre = app.extensions["coffre"]
+        certificats, erreur_certificats = [], None
+        if coffre is not None:
+            try:
+                certificats = protection.certificats_chiffrement()
+            except protection.ErreurProtection as e:
+                erreur_certificats = str(e)
         return render_template("parametres.html", definitions=mail.PARAMETRES,
-                               valeurs=mail.parametres())
+                               valeurs=mail.parametres(), protection_disponible=coffre is not None,
+                               protege=app.config["PROTEGE"], certificats=certificats,
+                               erreur_certificats=erreur_certificats,
+                               enveloppes=coffre.enveloppes() if coffre else [])
 
     # --- Budgets ---------------------------------------------------------------
 
@@ -870,21 +1046,26 @@ def port_occupe(port):
         return s.connect_ex(("127.0.0.1", port)) == 0
 
 
-def sauvegarde_quotidienne():
-    """Copie de la base une fois par jour dans donnees/sauvegardes (30 dernières gardées)."""
-    if not os.path.exists(FICHIER_BASE):
-        return
-    dossier = os.path.join(DOSSIER_DONNEES, "sauvegardes")
+def sauvegarde_quotidienne(dossier_donnees=DOSSIER_DONNEES):
+    """Copie de la base une fois par jour dans donnees/sauvegardes (30 dernières gardées).
+    Base protégée : c'est le fichier chiffré qui est copié."""
+    base = os.path.join(dossier_donnees, "achats.db")
+    chiffre = base + ".chiffre"
+    dossier = os.path.join(dossier_donnees, "sauvegardes")
     os.makedirs(dossier, exist_ok=True)
     cible = os.path.join(dossier, f"achats_{date.today():%Y%m%d}.db")
-    if not os.path.exists(cible):
-        source, copie = sqlite3.connect(FICHIER_BASE), sqlite3.connect(cible)
+    if os.path.exists(chiffre):
+        if not os.path.exists(cible + ".chiffre"):
+            shutil.copy2(chiffre, cible + ".chiffre")
+    elif os.path.exists(base) and not os.path.exists(cible):
+        source, copie = sqlite3.connect(base), sqlite3.connect(cible)
         source.backup(copie)  # copie cohérente même si la base est en cours d'utilisation
         copie.close()
         source.close()
-    for ancienne in sorted(glob.glob(os.path.join(dossier, "achats_" + "[0-9]" * 8 + ".db")))[
-            :-SAUVEGARDES_GARDEES]:
-        os.remove(ancienne)
+    for extension in (".db", ".db.chiffre"):
+        modele = os.path.join(dossier, "achats_" + "[0-9]" * 8 + extension)
+        for ancienne in sorted(glob.glob(modele))[:-SAUVEGARDES_GARDEES]:
+            os.remove(ancienne)
 
 
 def journaliser_dans_fichier():
@@ -903,6 +1084,12 @@ if __name__ == "__main__":
     arriere_plan = "--arriere-plan" in sys.argv
     port = int(os.environ.get("PORT", 5000))
     url = f"http://127.0.0.1:{port}"
+    relance = "--relance" in sys.argv
+    if relance:  # redémarrage demandé par l'application : attendre que l'ancienne soit arrêtée
+        for _ in range(30):
+            if not port_occupe(port):
+                break
+            threading.Event().wait(0.5)
     if port_occupe(port):
         # Déjà lancée : on se contente d'ouvrir le navigateur
         if not arriere_plan:
@@ -910,11 +1097,13 @@ if __name__ == "__main__":
         sys.exit(0)
     if arriere_plan or sys.stdout is None:  # sys.stdout est None avec pythonw.exe
         journaliser_dans_fichier()
-    if not arriere_plan and not os.environ.get("NO_BROWSER"):
+    if not arriere_plan and not relance and not os.environ.get("NO_BROWSER"):
         threading.Timer(1.5, lambda: webbrowser.open(url)).start()
     application = create_app()
+    application.config["RELANCE_POSSIBLE"] = True
     try:
         sauvegarde_quotidienne()
     except Exception as e:  # une sauvegarde ratée ne doit pas empêcher le démarrage
         print(f"Sauvegarde quotidienne impossible : {e}")
-    application.run(host="127.0.0.1", port=port, debug=False)
+    # Un seul traitement à la fois : la base protégée est une connexion unique en mémoire
+    application.run(host="127.0.0.1", port=port, debug=False, threaded=False)

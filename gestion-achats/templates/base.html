@@ -23,7 +23,11 @@
     <ul class="navbar-nav">
       <li class="nav-item"><a class="nav-link {% if page == 'import_excel' %}active{% endif %}" href="{{ url_for('import_excel') }}">Importer Excel</a></li>
       <li class="nav-item"><a class="nav-link" href="{{ url_for('export_excel') }}">Exporter Excel</a></li>
-      <li class="nav-item"><a class="nav-link {% if page == 'parametres' %}active{% endif %}" href="{{ url_for('parametres') }}" title="Paramètres de l'e-mail au service achat">⚙ Paramètres</a></li>
+      <li class="nav-item"><a class="nav-link {% if page == 'parametres' %}active{% endif %}" href="{{ url_for('parametres') }}" title="E-mail, protection par carte, arrêt de l'application">⚙ Paramètres</a></li>
+      {% if base_protegee and page not in ['verrou', 'deverrouiller'] %}
+      <li class="nav-item"><form method="post" action="{{ url_for('verrouiller') }}" class="d-inline">
+        <button class="nav-link btn btn-link" title="Verrouiller la base (le retrait de la carte la verrouille aussi)">🔒 Verrouiller</button></form></li>
+      {% endif %}
     </ul>
   </div>
 </nav>

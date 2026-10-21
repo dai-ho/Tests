@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block titre %}Base verrouillée{% endblock %}
+{% block contenu %}
+<div class="card card-body mx-auto mt-4 text-center" style="max-width: 34rem">
+  <div style="font-size: 3rem">🔒</div>
+  <h3>Base verrouillée</h3>
+  {% if raison %}<p class="text-muted mb-2">Motif : {{ raison }}.</p>{% endif %}
+  <p>La base est chiffrée. Pour l'ouvrir, insérez votre carte et saisissez votre code PIN
+    dans la fenêtre que Windows va afficher.</p>
+  {% if carte is false %}
+    <div class="alert alert-warning">Aucune carte détectée dans le lecteur.</div>
+  {% endif %}
+  <form method="post" action="{{ url_for('deverrouiller') }}" id="form-deverrouiller">
+    <input type="hidden" name="suivant" value="{{ suivant }}">
+    <button class="btn btn-primary btn-lg" id="bouton-deverrouiller">Déverrouiller avec la carte</button>
+  </form>
+  <p class="small text-muted mt-3 mb-0">La fenêtre du code PIN peut s'ouvrir derrière le navigateur :
+    si rien n'apparaît, regardez dans la barre des tâches.</p>
+  {% if enveloppes %}
+  <p class="small text-muted mt-2 mb-0">Certificat(s) acceptés :
+    {% for e in enveloppes %}{{ e.sujet }} ({{ e.emetteur }}, expire le {{ e.expire }}){{ ', ' if not loop.last }}{% endfor %}</p>
+  {% endif %}
+</div>
+<script>
+  // Le déchiffrement attend la saisie du PIN : on évite un double clic
+  document.getElementById("form-deverrouiller").addEventListener("submit", () => {
+    const b = document.getElementById("bouton-deverrouiller");
+    b.disabled = true; b.textContent = "Saisissez votre code PIN dans la fenêtre Windows…";
+  });
+</script>
+{% endblock %}

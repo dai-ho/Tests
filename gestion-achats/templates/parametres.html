@@ -16,6 +16,68 @@
   <div><button class="btn btn-primary">Enregistrer</button></div>
 </form>
 
+<h3 class="mt-5" id="protection">Protection de la base par carte à puce</h3>
+<div class="card card-body mb-4" style="max-width: 60rem">
+{% if not protection_disponible %}
+  <p class="mb-0 text-warning-emphasis">La bibliothèque de chiffrement n'est pas installée : relancez <code>lancer.bat</code>.</p>
+{% elif protege %}
+  <p><span class="badge bg-success">Active</span> La base est chiffrée sur le disque (sauvegardes comprises) ; elle s'ouvre
+    avec la carte et son code PIN, et se verrouille dès que la carte est retirée du lecteur.</p>
+  <h6>Certificats qui permettent d'ouvrir la base</h6>
+  <table class="table table-sm align-middle">
+    <thead><tr><th>Titulaire</th><th>Émetteur</th><th>Expire le</th><th>Associé le</th><th></th></tr></thead>
+    <tbody>
+    {% for e in enveloppes %}
+      <tr class="{{ 'table-danger' if e.expire < aujourdhui.isoformat() }}">
+        <td>{{ e.sujet }}</td><td>{{ e.emetteur }}</td><td>{{ e.expire }}</td><td>{{ e.ajoutee }}</td>
+        <td class="actions">{% if enveloppes|length > 1 %}
+          <form method="post" action="{{ url_for('retirer_certificat', empreinte=e.empreinte) }}" data-confirmer="Ce certificat ne permettra plus d'ouvrir la base. Continuer ?">
+            <button class="btn btn-sm btn-outline-danger">Retirer</button></form>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% set associes = enveloppes|map(attribute='empreinte')|map('upper')|list %}
+  {% set nouveaux = certificats|rejectattr('empreinte', 'in', associes)|selectattr('valide')|list %}
+  <form method="post" action="{{ url_for('ajouter_certificat') }}" class="d-flex flex-wrap gap-2 align-items-end mb-2">
+    <div><label class="form-label small">Associer un autre certificat (ex. nouvelle carte)</label>
+      <select name="empreinte" class="form-select" {{ 'disabled' if not nouveaux }}>
+        {% for c in nouveaux %}<option value="{{ c.empreinte }}">{{ c.sujet }} – {{ c.emetteur }} – expire le {{ c.expire }}{{ ' – carte' if c.carte }}</option>
+        {% else %}<option>Aucun autre certificat de chiffrement disponible</option>{% endfor %}
+      </select></div>
+    <button class="btn btn-outline-primary" {{ 'disabled' if not nouveaux }}>Associer</button>
+  </form>
+  <p class="small text-muted">À faire <strong>avant l'expiration de la carte actuelle</strong> : insérez d'abord l'ancienne carte pour
+    déverrouiller la base, puis associez le certificat de la nouvelle. En cas de perte de la carte, la clé de chiffrement
+    doit être récupérée auprès du service PKI (séquestre) ; pensez à vérifier auprès d'eux qu'elle est bien séquestrée.</p>
+  <p class="small text-muted">Les exports Excel, eux, ne sont pas chiffrés : rangez-les en lieu sûr.</p>
+  <form method="post" action="{{ url_for('desactiver_protection') }}"
+        data-confirmer="Retirer la protection ? La base et ses sauvegardes seront réécrites EN CLAIR sur le disque.">
+    <button class="btn btn-outline-danger btn-sm">Retirer la protection</button></form>
+{% else %}
+  <p>La base est actuellement <strong>en clair</strong> sur le disque. Une fois la protection activée :</p>
+  <ul class="small">
+    <li>la base et ses sauvegardes sont chiffrées (AES-256) ; la clé n'est restituée que par votre carte, avec votre code PIN ;</li>
+    <li>à chaque démarrage, l'application est verrouillée jusqu'à ce que vous la déverrouilliez avec la carte ;</li>
+    <li>retirer la carte du lecteur verrouille l'application ;</li>
+    <li>la base en clair et les sauvegardes en clair existantes sont chiffrées puis effacées.</li>
+  </ul>
+  {% if erreur_certificats %}<div class="alert alert-warning">{{ erreur_certificats }}</div>{% endif %}
+  {% set utilisables = certificats|selectattr('valide')|list %}
+  <form method="post" action="{{ url_for('activer_protection') }}" class="d-flex flex-wrap gap-2 align-items-end"
+        data-confirmer="Activer la protection ? Windows va demander le code PIN de la carte pour vérifier qu'elle peut relire la clé.">
+    <div><label class="form-label small">Certificat de chiffrement</label>
+      <select name="empreinte" class="form-select" {{ 'disabled' if not utilisables }}>
+        {% for c in utilisables %}<option value="{{ c.empreinte }}">{{ c.sujet }} – {{ c.emetteur }} – expire le {{ c.expire }}{{ ' – carte à puce' if c.carte else ' – logiciel (pas sur une carte)' }}</option>
+        {% else %}<option>Aucun certificat de chiffrement valide (carte insérée ?)</option>{% endfor %}
+      </select></div>
+    <button class="btn btn-primary" {{ 'disabled' if not utilisables }}>Activer la protection</button>
+  </form>
+  <p class="small text-muted mt-2 mb-0">En cas de perte de la carte, la base ne pourra être rouverte que grâce au séquestre
+    de la clé de chiffrement par le service PKI : vérifiez auprès d'eux qu'il est en place avant d'activer.</p>
+{% endif %}
+</div>
+
 <h3 class="mt-5">Application</h3>
 <div class="card card-body" style="max-width: 45rem">
   <p class="mb-2">Adresse : <a href="{{ request.host_url }}">{{ request.host_url }}</a> (à mettre en favori).</p>

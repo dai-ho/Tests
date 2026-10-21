@@ -26,6 +26,22 @@ Pour reprendre l'existant : menu **Importer Excel**, puis choisir le fichier act
 - Sans fenêtre, les messages et erreurs sont écrits dans `donnees/application.log`, et une copie de la
   base est faite chaque jour dans `donnees/sauvegardes` (30 dernières conservées).
 
+## Protection de la base par carte à puce (facultative)
+
+*Paramètres > Protection de la base par carte à puce* : choisir le certificat de chiffrement de la carte
+puis « Activer la protection » (Windows demande le code PIN une fois, pour vérifier que la carte sait relire la clé).
+
+- La base (`donnees/achats.db.chiffre`) et ses sauvegardes sont chiffrées en AES-256-GCM ; la clé est chiffrée
+  avec le certificat de la carte (`donnees/cle_protection.json`). La base déchiffrée n'existe qu'en mémoire.
+- Au démarrage, l'application est verrouillée : bouton « Déverrouiller avec la carte » puis code PIN.
+- Le retrait de la carte du lecteur verrouille l'application (bouton « 🔒 Verrouiller » pour le faire à la main).
+- **Renouvellement de carte** : avant l'expiration, déverrouiller avec l'ancienne carte puis associer le certificat
+  de la nouvelle (Paramètres). **Perte de la carte** : seule la récupération de la clé de chiffrement par le service
+  PKI (séquestre) permet de rouvrir la base.
+- Les exports Excel ne sont pas chiffrés.
+- Restaurer une sauvegarde : application arrêtée, copier `sauvegardes/achats_AAAAMMJJ.db.chiffre` sur
+  `donnees/achats.db.chiffre` (même clé).
+
 ## Fonctionnalités
 
 Reprend la structure du fichier **Budgets GT** (onglets « Suivi DA » et « Suivi BdC ») :
@@ -72,6 +88,7 @@ dans `donnees/sauvegardes/`.
 | `app.py` | Application Flask : pages et formulaires |
 | `models.py` | Modèle de données (DA, postes DA, BdC, postes BdC) |
 | `regles.py` | Règles de couleur des lignes |
+| `protection.py` | Chiffrement de la base, clé protégée par la carte à puce, verrouillage |
 | `budgets.py` | Calcul des situations budgétaires (budget, DA, BdC, disponible, alertes) |
 | `mail.py` | E-mail de demande de commande au service achat |
 | `excel_io.py` | Import / export Excel, en-têtes de colonnes reconnus |
