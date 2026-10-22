@@ -9,14 +9,13 @@ Fichier attendu (Excel .xlsx ou CSV), 4 colonnes dans cet ordre :
 Les lignes d'en-tête, de total et les lignes vides sont ignorées ; dans un export de tableau
 croisé, un nom ou un code laissé vide reprend la valeur de la ligne précédente.
 """
-import csv
-import io
 import re
 import unicodedata
 from datetime import date, datetime, timedelta
 
 from openpyxl import load_workbook
 
+from formulaires import lignes_csv
 from models import Agent, Parametre, TempsSaisi, db
 
 HEURES_PAR_ETP_DEFAUT = 1607  # durée annuelle légale du travail
@@ -102,19 +101,7 @@ def lignes_brutes(fichier, nom_fichier):
         for ligne in wb.worksheets[0].iter_rows(values_only=True):
             yield list(ligne[:4]) + [None] * (4 - len(ligne[:4]))
         return
-    contenu = fichier.read()
-    texte = None
-    for codage in ("utf-8-sig", "cp1252"):
-        try:
-            texte = contenu.decode(codage)
-            break
-        except UnicodeDecodeError:
-            pass
-    try:
-        separateur = csv.Sniffer().sniff(texte[:4096], delimiters=";,\t").delimiter
-    except csv.Error:
-        separateur = ";"  # cas usuel des exports français ; un fichier illisible sera signalé
-    for ligne in csv.reader(io.StringIO(texte), delimiter=separateur):
+    for ligne in lignes_csv(fichier.read()):
         yield (ligne[:4] + [None] * 4)[:4]
 
 

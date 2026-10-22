@@ -394,6 +394,17 @@ def actions_codes():
         cible = Activite.query.filter_by(type=type_, nom=nom).first() or Activite(type=type_, nom=nom)
         db.session.add(cible)
         message = f"rattaché(s) à la nouvelle activité « {nom} » ({type_})"
+    elif action == "supprimer":
+        supprimes = 0
+        for code in choisis:
+            e = elements.get(referentiel.cle(code))
+            if e is not None:
+                db.session.delete(e)
+                supprimes += 1
+        db.session.commit()
+        flash(f"{supprimes} code(s) supprimé(s) du référentiel (les temps et le plan de charge "
+              "ne sont pas modifiés).", "success")
+        return redirect(retour)
     elif action == "retirer":
         for code in choisis:
             element(code).activite = None

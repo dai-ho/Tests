@@ -1,10 +1,9 @@
 """Référentiel des centres de coût (codes EOTP) : type, désignation SAP, description,
 activité de rattachement ; import CSV par type ; regroupement Type → Activité → Code."""
-import csv
-import io
 import re
 import unicodedata
 
+from formulaires import lignes_csv
 from models import TYPE_NON_CLASSE, TYPES_CODE, Activite, ElementRecepteur, db
 
 SANS_ACTIVITE = "(sans activité)"
@@ -53,32 +52,23 @@ def importer_csv(contenu, type_):
     """Colonnes : code EOTP, désignation SAP, description, cible MSO (ignorée).
     Crée ou met à jour les codes (le type est imposé ; l'activité existante est conservée).
     Renvoie (créés, mis à jour, lignes ignorées)."""
-    texte = None
-    for codage in ("utf-8-sig", "cp1252"):
-        try:
-            texte = contenu.decode(codage)
-            break
-        except UnicodeDecodeError:
-            pass
-    if texte is None:
-        raise ValueError("encodage du fichier non reconnu")
-    try:
-        separateur = csv.Sniffer().sniff(texte[:4096], delimiters=";,\t").delimiter
-    except csv.Error:
-        separateur = ";"
     elements = elements_par_code()
     crees = mis_a_jour = 0
     ignorees = []
-    for num, ligne in enumerate(csv.reader(io.StringIO(texte), delimiter=separateur), start=1):
+    for num, ligne in enumerate(lignes_csv(contenu), start=1):
         cellules = [c.strip() for c in ligne] + ["", "", ""]
-        code = cellules[0]
+        # « HORSREMUNER | Absences non rémunérées » : code avant « | », libellé après
+        code, _, complement = cellules[0].partition("|")
+        code, complement = code.strip(), complement.strip()
         if not code:
             continue
         if num == 1 and ("eotp" in _normaliser(code) or "code" in _normaliser(code)):
             continue  # ligne d'en-tête
-        if len(code) > 100:
+        if len(code) > 100 or any(ch in code for ch in "\t\n\""):
             ignorees.append(num)
             continue
+        if complement:
+            cellules[2] = f"{complement} — {cellules[2]}" if cellules[2] else complement
         e = elements.get(cle(code))
         if e is None:
             e = elements[cle(code)] = ElementRecepteur(code=code)
