@@ -2,7 +2,7 @@
 plan de charge (en ETP) par centre de coût et par année, temps réalisés, formations."""
 from datetime import date, timedelta
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 
 from formulaires import (champ, champ_date, champ_entier, champ_montant, enregistrer,
                          filtre_courant, valeurs_distinctes)
@@ -523,6 +523,51 @@ def supprimer_alias(alias_id):
     db.session.commit()
     flash("Alias supprimé : cette graphie ne sera plus convertie à l'import.", "success")
     return redirect(url_for("rh.modifier_code", id=element_id))
+
+
+SEPARATEUR_TYPE = " — "  # « Activité — Type », proposé pour les codes non classés
+
+
+@bp.post("/codes/activite")
+def definir_activite_code():
+    """Saisie directe de l'activité d'un code dans le tableau (enregistrement immédiat).
+    Une activité existante du type du code est reprise, sinon elle est créée ; vide = aucune.
+    Pour un code non classé, « Activité — Type » désigne une activité existante, dont le code
+    prend le type. Réponse JSON."""
+    jeton = request.form.get("jeton", "")
+    saisie = (request.form.get("activite") or "").strip()
+    if jeton.startswith("id:") and jeton[3:].isdigit():
+        e = db.session.get(ElementRecepteur, int(jeton[3:]))
+    else:
+        e = referentiel.elements_par_code(avec_alias=True).get(referentiel.cle(jeton))
+        if e is None and jeton.strip():
+            e = ElementRecepteur(code=jeton.strip())
+            db.session.add(e)
+    if e is None:
+        return jsonify(ok=False, message="code introuvable"), 404
+    if not saisie:
+        e.activite = None
+        db.session.commit()
+        return jsonify(ok=True, activite="", type=e.type, cree=False)
+
+    nom, type_ = saisie, e.type
+    if SEPARATEUR_TYPE in saisie:  # « Activité — Type » choisi dans la liste
+        nom, _, type_choisi = saisie.rpartition(SEPARATEUR_TYPE)
+        if type_choisi in TYPES_CODE and (not e.type or e.type == type_choisi):
+            nom, type_ = nom.strip(), type_choisi
+    if not type_:
+        return jsonify(ok=False, message="code non classé : choisissez une activité existante de la "
+                                         "liste, ou classez d'abord le code dans un type"), 400
+    activite = Activite.query.filter(Activite.type == type_,
+                                     db.func.lower(Activite.nom) == nom.lower()).first()
+    cree = activite is None
+    if cree:
+        activite = Activite(type=type_, nom=nom)
+        db.session.add(activite)
+    reclasse = e.type != type_
+    e.activite, e.type = activite, type_
+    db.session.commit()
+    return jsonify(ok=True, activite=activite.nom, type=type_, cree=cree, reclasse=reclasse)
 
 
 @bp.post("/codes/<int:element_id>/supprimer")

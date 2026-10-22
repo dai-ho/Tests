@@ -159,3 +159,6 @@ td.actions form { display: inline; }
 #table-codes tbody tr:not(.ligne-type) { cursor: pointer; }
 #table-codes tbody tr:has(.case-code:checked) td { --bs-table-bg: rgba(79, 124, 171, .16); }
 main:has(#barre-codes.flottante) { padding-bottom: 9rem !important; }
+#table-codes .cellule-activite { min-width: 13rem; white-space: nowrap; }
+#table-codes .saisie-activite { display: inline-block; width: 11rem; }
+#table-codes .etat-activite { font-size: .75rem; margin-left: .35rem; }

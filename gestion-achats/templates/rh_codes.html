@@ -79,7 +79,12 @@
             {% if e and e.alias %}<div class="small text-muted text-truncate" title="Autres graphies">alias : {{ e.alias|map(attribute='alias')|join(', ') }}</div>{% endif %}</td>
           <td class="small">{{ e.designation if e and e.designation }}</td>
           <td class="small text-muted">{{ e.description if e and e.description }}</td>
-          <td class="small">{% if e and e.activite %}{{ e.activite.nom }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td class="cellule-activite"><input class="form-control form-control-sm saisie-activite" autocomplete="off"
+                 list="{{ 'act-' ~ types.index(type_) if type_ in types else 'act-toutes' }}"
+                 data-jeton="{{ 'id:' ~ e.id if e else code }}" data-initial="{{ e.activite.nom if e and e.activite else '' }}"
+                 value="{{ e.activite.nom if e and e.activite else '' }}"
+                 placeholder="{{ 'activité…' if type_ in types else 'activité existante…' }}"
+                 title="Choisir une activité ou en saisir une nouvelle ; Entrée pour enregistrer, champ vide pour retirer"><span class="etat-activite"></span></td>
           <td class="actions">{% if e %}<button class="btn btn-sm btn-outline-danger" title="Supprimer ce code du référentiel"
               formaction="{{ url_for('rh.supprimer_code', element_id=e.id) }}" formnovalidate
               onclick="return confirm('Supprimer ce code du référentiel ?')">✕</button>{% endif %}</td>
@@ -123,6 +128,10 @@
   </div>
 </form>
 {% endif %}
+
+{# Suggestions de la colonne Activité : activités du type du code ; « Activité — Type » pour les non classés #}
+{% for t in types %}<datalist id="act-{{ loop.index0 }}">{% for a in activites.get(t, []) %}<option value="{{ a.nom }}">{% endfor %}</datalist>{% endfor %}
+<datalist id="act-toutes">{% for t in types %}{% for a in activites.get(t, []) %}<option value="{{ a.nom }} — {{ t }}">{% endfor %}{% endfor %}</datalist>
 
 {% set toutes = activites.values()|sum(start=[]) %}
 {% if toutes %}
@@ -187,5 +196,38 @@
     if (e.shiftKey) window.getSelection()?.removeAllRanges();
   }));
   majCompte();
+
+  // Colonne Activité : enregistrement immédiat à la validation du champ
+  document.querySelectorAll(".saisie-activite").forEach((champ) => {
+    const etat = champ.nextElementSibling;
+    const enregistrer = async () => {
+      if (champ.value.trim() === champ.dataset.initial) return;
+      const donnees = new FormData();
+      donnees.append("jeton", champ.dataset.jeton);
+      donnees.append("activite", champ.value);
+      etat.textContent = "…"; etat.className = "etat-activite text-muted";
+      try {
+        const r = await fetch("{{ url_for('rh.definir_activite_code') }}", { method: "POST", body: donnees });
+        const res = await r.json();
+        if (!res.ok) throw new Error(res.message);
+        if (res.reclasse) { location.reload(); return; }  // le code change de groupe (type)
+        champ.value = champ.dataset.initial = res.activite;
+        etat.textContent = res.cree ? "✔ créée" : "✔";
+        etat.className = "etat-activite text-success";
+        if (res.cree) {  // la nouvelle activité devient proposée pour les autres codes du même type
+          const option = document.createElement("option");
+          option.value = res.activite;
+          document.getElementById(champ.getAttribute("list"))?.appendChild(option);
+        }
+      } catch (e) {
+        etat.textContent = "✕ " + e.message;
+        etat.className = "etat-activite text-danger";
+      }
+    };
+    champ.addEventListener("change", enregistrer);
+    champ.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); champ.blur(); }  // ne soumet pas le formulaire des actions
+    });
+  });
 </script>
 {% endblock %}
