@@ -3,9 +3,9 @@
 {% block titre %}Plan de charge {{ annee }}{% endblock %}
 {% block contenu %}
 <h3>Plan de charge {{ annee }}</h3>
-<p class="small text-muted">Part du temps de chaque personne par projet / activité, en ETP (1 = une personne à temps plein sur
-  l'année ; 0,5 = la moitié de son temps). Le total d'une ligne se compare à la quotité de la personne.
-  {% if filtre_projet %}<br>Filtre actif : seul le projet « {{ filtre_projet }} » est affiché et modifié.{% endif %}</p>
+<p class="small text-muted">Part du temps prévue pour chaque personne par centre de coût (élément récepteur), en ETP
+  (1 = une personne à temps plein sur l'année ; 0,5 = la moitié de son temps). Le total d'une ligne se compare à la quotité.
+  Sous chaque case, en petit : le <strong>réalisé</strong> issu des <a href="{{ url_for('rh.temps_realises') }}">temps importés</a>.</p>
 
 {% if not agents %}
   <p class="text-muted">Aucune personne dans l'équipe : <a href="{{ url_for('rh.form_agent') }}">ajoutez des fiches</a>.</p>
@@ -18,10 +18,10 @@
       {% for p in projets %}<th class="num">{{ p }}</th>{% endfor %}
       <th class="num">
         <input name="nouveau_projet" class="form-control form-control-sm" style="width: 9rem" list="liste-projets"
-               placeholder="+ projet / activité" title="Ajouter une colonne : saisissez le nom puis les ETP">
+               placeholder="+ centre de coût" title="Ajouter une colonne : saisissez le code puis les ETP">
         <datalist id="liste-projets">{% for p in projets_connus if p not in projets %}<option value="{{ p }}">{% endfor %}</datalist>
       </th>
-      <th class="num">Total</th><th class="num">Écart</th>
+      <th class="num">Total</th><th class="num">Écart</th><th class="num">Réalisé</th>
     </tr></thead>
     <tbody>
     {% for a in agents %}
@@ -30,10 +30,12 @@
         <td class="num">{{ a.etp|etp }}</td>
         {% for p in projets %}
           <td class="num"><input name="etp_{{ a.id }}_{{ loop.index0 }}" class="form-control form-control-sm d-inline-block case-etp"
-                 inputmode="decimal" value="{{ grille.get((a.id, p))|etp }}"></td>
+                 inputmode="decimal" value="{{ grille.get((a.id, p))|etp }}">
+            {% if realise.get((a.id, p)) %}<div class="small text-muted" title="Réalisé (temps importés)">réal. {{ realise[(a.id, p)]|round(2)|etp }}</div>{% endif %}</td>
         {% endfor %}
         <td class="num"><input name="etp_{{ a.id }}_nouveau" class="form-control form-control-sm d-inline-block case-etp" inputmode="decimal"></td>
         <td class="num fw-bold total-ligne"></td><td class="num ecart-ligne"></td>
+        <td class="num text-muted">{{ realise_agent.get(a.id, 0)|round(2)|etp if realise_agent.get(a.id) }}</td>
       </tr>
     {% endfor %}
     </tbody>
@@ -41,6 +43,7 @@
       <td>Total</td><td class="num">{{ agents|sum(attribute='etp')|etp }}</td>
       {% for p in projets %}<td class="num total-colonne" data-colonne="{{ loop.index0 }}"></td>{% endfor %}
       <td class="num total-colonne" data-colonne="nouveau"></td><td class="num" id="total-general"></td><td></td>
+      <td class="num text-muted">{{ realise_agent.values()|sum|round(2)|etp if realise_agent }}</td>
     </tr></tfoot>
   </table></div>
   <div class="d-flex gap-2 mt-3 align-items-center">

@@ -32,6 +32,7 @@
       <div class="rubrique">Gestion RH</div>
       {{ lien('rh.equipe', 'Équipe', '◉', ['rh.fiche_agent', 'rh.form_agent']) }}
       {{ lien('rh.plan_charge', 'Plan de charge', '▥') }}
+      {{ lien('rh.temps_realises', 'Temps réalisés', '◷') }}
       {{ lien('rh.competences', 'Compétences', '✦', ['rh.form_competence']) }}
       {{ lien('rh.formations', 'Formations', '✎', ['rh.form_formation']) }}
     </nav>
@@ -56,11 +57,13 @@
           <option value="" {{ 'selected' if filtre_annee is none }}>Toutes</option>
           {% for a in filtre_annees %}<option value="{{ a }}" {{ 'selected' if filtre_annee == a }}>{{ a }}</option>{% endfor %}
         </select></label>
+      {% if not filtre_sans_projet %}
       <label class="d-flex align-items-center gap-2 small">Projet
         <select name="projet" class="form-select form-select-sm" onchange="this.form.submit()">
           <option value="" {{ 'selected' if not filtre_projet }}>Tous</option>
           {% for p in filtre_projets %}<option {{ 'selected' if filtre_projet == p }}>{{ p }}</option>{% endfor %}
         </select></label>
+      {% endif %}
       {% if filtre_annee != aujourdhui.year or filtre_projet %}
         <a class="small" href="{{ url_for('filtrer', annee=aujourdhui.year, retour=request.full_path) }}">Réinitialiser ({{ aujourdhui.year }}, tous projets)</a>
       {% endif %}

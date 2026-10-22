@@ -35,7 +35,8 @@ from models import (STATUTS_DA, TYPES_BUDGET, Affectation, BudgetAnnuel, Command
 
 # Pages sur lesquelles s'applique le filtre année / projet
 PAGES_FILTREES = {"accueil", "liste_da", "postes_da", "liste_commandes", "postes_commande",
-                  "liste_budgets", "rh.equipe", "rh.plan_charge", "rh.formations"}
+                  "liste_budgets", "rh.equipe", "rh.plan_charge", "rh.formations",
+                  "rh.temps_realises"}
 
 DOSSIER = os.path.dirname(os.path.abspath(__file__))
 DOSSIER_DONNEES = os.path.join(DOSSIER, "donnees")
@@ -158,6 +159,9 @@ def create_app(db_uri=None, dossier=None):
         annee, projet = filtre_courant()
         annees = set(valeurs_distinctes(PosteDA.annee)) | {date.today().year}
         return {"filtre_actif": True, "filtre_annee": annee, "filtre_projet": projet,
+                # Pages RH : le filtre par projet ne s'applique pas (elles portent sur les
+                # centres de coût)
+                "filtre_sans_projet": request.endpoint.startswith("rh."),
                 "filtre_annees": sorted(annees, reverse=True),
                 "filtre_projets": sorted(set(valeurs_distinctes(PosteDA.projet))
                                          | set(valeurs_distinctes(LigneBudgetaire.projet))

@@ -24,7 +24,7 @@
 <div class="table-responsive mb-4"><table class="table table-hover align-middle" id="table-equipe">
   <thead><tr>
     <th data-tri>Nom</th><th data-tri>Fonction</th><th data-tri>Statut</th><th data-tri class="num">Quotité</th>
-    <th data-tri class="num">Charge {{ annee }}</th><th data-tri>Projets {{ annee }}</th><th data-tri class="num">Compétences maîtrisées</th>
+    <th data-tri class="num">Charge prévue {{ annee }}</th><th data-tri class="num">Réalisé {{ annee }}</th><th data-tri>Centres de coût {{ annee }}</th><th data-tri class="num">Compétences maîtrisées</th>
     <th data-tri class="num">Formations {{ annee }}</th><th></th>
   </tr></thead>
   <tbody>
@@ -36,12 +36,13 @@
       <td>{{ a.fonction or '' }}</td><td>{{ a.statut or '' }}</td>
       <td class="num">{{ a.etp|etp }}</td>
       <td class="num" data-valeur="{{ a.charge(annee) }}">{% if a.actif %}{{ macros.charge(a, annee, ecarts.get(a.id)) }}{% endif %}</td>
+      <td class="num" data-valeur="{{ realise.get(a.id, 0) }}">{{ realise.get(a.id)|round(2)|etp if realise.get(a.id) }}</td>
       <td class="small">{% for p in projets|sort(attribute='etp', reverse=true) %}{{ p.projet }} <span class="text-muted">{{ p.etp|etp }}</span>{{ ', ' if not loop.last }}{% endfor %}</td>
       <td class="num">{{ a.competences|selectattr('niveau', 'ge', 3)|list|length }}</td>
       <td class="num">{{ a.formations|selectattr('date_debut')|selectattr('date_debut.year', 'equalto', annee)|rejectattr('statut', 'equalto', 'annulée')|list|length }}</td>
       <td class="actions"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('rh.fiche_agent', agent_id=a.id) }}">Ouvrir</a></td>
     </tr>
-  {% else %}<tr><td colspan="9" class="text-muted">Aucune personne : commencez par « + Nouvelle personne ».</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="10" class="text-muted">Aucune personne : commencez par « + Nouvelle personne ».</td></tr>{% endfor %}
   </tbody>
 </table></div>
 

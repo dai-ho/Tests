@@ -291,6 +291,7 @@ class Agent(db.Model):
     formations = db.relationship("Formation", back_populates="agent",
                                  cascade="all, delete-orphan",
                                  order_by="Formation.date_debut.desc()")
+    temps = db.relationship("TempsSaisi", back_populates="agent", cascade="all, delete-orphan")
 
     @property
     def nom_complet(self):
@@ -375,3 +376,18 @@ class Formation(db.Model):
 
     agent = db.relationship("Agent", back_populates="formations")
     competence = db.relationship("Competence")
+
+
+class TempsSaisi(db.Model):
+    """Heures déclarées par un agent sur un élément récepteur (centre de coût), importées du
+    marquage des temps. La date est celle du fichier (jour, ou 1er du mois pour un mois)."""
+    __tablename__ = "temps_saisi"
+    __table_args__ = (db.UniqueConstraint("agent_id", "code", "date"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    agent_id = db.Column(db.Integer, db.ForeignKey("agent.id"), nullable=False)
+    code = db.Column(db.String(100), nullable=False)
+    date = db.Column(db.Date, nullable=False, index=True)
+    heures = db.Column(db.Float, nullable=False)
+
+    agent = db.relationship("Agent", back_populates="temps")

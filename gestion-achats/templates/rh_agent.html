@@ -25,7 +25,7 @@
   <div class="col-xl-6" id="charge">
     <h5>Plan de charge <small class="text-muted fs-6">{{ annee }} : {{ macros.charge(agent, annee, ecart) }} ETP</small></h5>
     <div class="table-responsive"><table class="table table-sm align-middle">
-      <thead><tr><th>Année</th><th>Projet / activité</th><th class="num">ETP</th><th></th></tr></thead>
+      <thead><tr><th>Année</th><th>Centre de coût</th><th class="num">ETP prévu</th><th></th></tr></thead>
       <tbody>
       {% for a in agent.affectations %}
         <tr class="{{ 'table-active' if a.annee == annee }}">
@@ -38,7 +38,7 @@
     <form method="post" action="{{ url_for('rh.ajouter_affectation', agent_id=agent.id) }}" class="d-flex flex-wrap gap-2 align-items-end mt-2">
       <div><label class="form-label small mb-0">Année</label>
         <select name="annee" class="form-select form-select-sm">{% for a in annees %}<option {{ 'selected' if a == annee }}>{{ a }}</option>{% endfor %}</select></div>
-      <div class="flex-grow-1"><label class="form-label small mb-0">Projet / activité</label>
+      <div class="flex-grow-1"><label class="form-label small mb-0">Centre de coût</label>
         <input name="projet" class="form-control form-control-sm" list="liste-projets" required>
         <datalist id="liste-projets">{% for p in projets %}<option value="{{ p }}">{% endfor %}</datalist></div>
       <div><label class="form-label small mb-0">ETP</label>
@@ -47,6 +47,23 @@
     </form>
     <div class="form-text">Saisie de toute l'équipe d'un coup : <a href="{{ url_for('rh.plan_charge') }}">plan de charge</a>.</div>
   </div>
+
+  <!-- Temps réalisés -->
+  {% if lignes_realise %}
+  <div class="col-xl-6" id="realise">
+    <h5>Temps réalisés <small class="text-muted fs-6">temps importés · {{ base_etp|round|int }} h = 1 ETP</small></h5>
+    <div class="table-responsive" style="max-height: 22rem; overflow-y: auto"><table class="table table-sm align-middle">
+      <thead><tr><th>Année</th><th>Centre de coût</th><th class="num">Heures</th><th class="num">ETP réalisé</th><th class="num">ETP prévu</th></tr></thead>
+      <tbody>
+      {% for an, code in lignes_realise %}{% set h = realise.get((an, code), 0) %}
+        <tr class="{{ 'table-active' if an == annee }}"><td>{{ an }}</td><td>{{ code }}</td>
+          <td class="num">{{ h|round(1)|etp if h }}</td><td class="num">{{ (h / base_etp)|round(2)|etp if h }}</td>
+          <td class="num text-muted">{{ prevu.get((an, code))|etp }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+  {% endif %}
 
   <!-- Points forts / axes de progrès -->
   <div class="col-xl-6" id="appreciations">

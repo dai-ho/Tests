@@ -1,14 +1,14 @@
 """Gestion RH de l'équipe : fiches, compétences, points forts / axes de progrès,
-plan de charge (en ETP) par projet / activité et par année, formations."""
+plan de charge (en ETP) par centre de coût et par année, temps réalisés, formations."""
 from datetime import date, timedelta
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from formulaires import (champ, champ_date, champ_entier, champ_montant, enregistrer,
                          filtre_courant, valeurs_distinctes)
+import temps
 from models import (NIVEAUX, STATUTS_AGENT, STATUTS_FORMATION, TYPES_APPRECIATION, Affectation,
-                    Agent, Appreciation, Competence, Formation, LigneBudgetaire, NiveauCompetence,
-                    PosteDA, db)
+                    Agent, Appreciation, Competence, Formation, NiveauCompetence, TempsSaisi, db)
 
 bp = Blueprint("rh", __name__, url_prefix="/rh")
 
@@ -29,10 +29,6 @@ def agents_actifs():
     return [a for a in Agent.query.order_by(Agent.nom, Agent.prenom) if a.actif]
 
 
-def projets_connus():
-    """Projets / activités proposés : ceux des affectations, des DA et des budgets."""
-    return sorted(set(valeurs_distinctes(Affectation.projet)) | set(valeurs_distinctes(PosteDA.projet))
-                  | set(valeurs_distinctes(LigneBudgetaire.projet)))
 
 
 def ecart_charge(agent, annee):
@@ -67,8 +63,10 @@ def equipe():
     agents = Agent.query.order_by(Agent.nom, Agent.prenom).all()
     actifs = [a for a in agents if a.actif]
     prochainement = date.today() + timedelta(days=90)
+    base_etp = temps.heures_par_etp()
     return render_template(
         "rh_equipe.html", annee=annee, agents=agents, actifs=actifs,
+        realise={k: h / base_etp for k, h in temps.heures_par(annee, "agent").items()},
         capacite=sum(a.etp or 0 for a in actifs),
         charge=sum(a.charge(annee) for a in actifs),
         ecarts={a.id: ecart_charge(a, annee) for a in actifs},
@@ -108,10 +106,18 @@ def fiche_agent(agent_id):
     agent = obtenir_agent(agent_id)
     annee = annee_courante()
     competences = Competence.query.order_by(Competence.domaine, Competence.nom).all()
+    base_etp = temps.heures_par_etp()
+    realise = {}  # (année, code) -> heures
+    for t in agent.temps:
+        realise[(t.date.year, t.code)] = realise.get((t.date.year, t.code), 0) + t.heures
+    prevu = {(a.annee, a.projet): a.etp for a in agent.affectations}
+    lignes_realise = sorted(set(realise) | {k for k in prevu if k[0] in {a for a, _ in realise}},
+                            key=lambda k: (-k[0], k[1]))
     return render_template(
         "rh_agent.html", agent=agent, annee=annee, ecart=ecart_charge(agent, annee),
         competences=competences, niveaux=NIVEAUX, types=TYPES_APPRECIATION,
-        statuts_formation=STATUTS_FORMATION, projets=projets_connus(),
+        statuts_formation=STATUTS_FORMATION, projets=temps.codes_connus(),
+        realise=realise, prevu=prevu, lignes_realise=lignes_realise, base_etp=base_etp,
         annees=sorted({a.annee for a in agent.affectations} | {annee, annee + 1}, reverse=True),
         aujourdhui=date.today())
 
@@ -179,7 +185,7 @@ def ajouter_affectation(agent_id):
         return redirect(url_for("rh.fiche_agent", agent_id=agent_id) + "#charge")
     projet = champ("projet")
     if not (annee and projet and etp is not None):
-        flash("Indiquez l'année, le projet / l'activité et la part d'ETP.", "warning")
+        flash("Indiquez l'année, le centre de coût et la part d'ETP.", "warning")
     else:
         definir_affectation(agent, annee, projet, etp)
         db.session.commit()
@@ -212,9 +218,9 @@ def definir_affectation(agent, annee, projet, etp):
 
 @bp.route("/plan-de-charge", methods=["GET", "POST"])
 def plan_charge():
-    """Grille agents × projets de l'année : chaque case est une part d'ETP."""
+    """Grille agents × centres de coût de l'année : chaque case est une part d'ETP prévue ;
+    le réalisé (temps importés) est rappelé sous chaque case."""
     annee = annee_courante()
-    _, projet_filtre = filtre_courant()
     agents = agents_actifs()
     if request.method == "POST":
         # Colonnes affichées (une case vide = pas d'affectation) + éventuelle nouvelle colonne
@@ -241,14 +247,58 @@ def plan_charge():
         return redirect(url_for("rh.plan_charge"))
 
     affectations = Affectation.query.filter_by(annee=annee).all()
-    projets = sorted({a.projet for a in affectations})
-    if projet_filtre:
-        projets = [p for p in projets if p == projet_filtre] or [projet_filtre]
+    base_etp = temps.heures_par_etp()
+    realise = {k: h / base_etp for k, h in temps.heures_par(annee, "agent_code").items()}
+    ids = {a.id for a in agents}
+    projets = sorted({a.projet for a in affectations} | {c for (i, c) in realise if i in ids})
     grille = {(a.agent_id, a.projet): a.etp for a in affectations}
     return render_template("rh_plan_charge.html", annee=annee, agents=agents, projets=projets,
-                           grille=grille, projets_connus=projets_connus(),
-                           filtre_projet=projet_filtre,
+                           grille=grille, projets_connus=temps.codes_connus(), realise=realise,
+                           realise_agent={k: h / base_etp
+                                          for k, h in temps.heures_par(annee, "agent").items()},
                            ecarts={a.id: ecart_charge(a, annee) for a in agents})
+
+
+# --- Temps réalisés (marquage des temps importé) -------------------------------------------
+
+@bp.route("/temps", methods=["GET", "POST"])
+def temps_realises():
+    annee = annee_courante()
+    compte_rendu = None
+    if request.method == "POST" and "base_etp" in request.form:
+        try:
+            valeur = champ_montant("base_etp")
+            if not valeur or valeur <= 0:
+                raise ValueError
+            temps.definir_heures_par_etp(valeur)
+            flash(f"Base de conversion : {valeur:g} heures = 1 ETP.", "success")
+        except ValueError:
+            flash("Nombre d'heures invalide.", "danger")
+        return redirect(url_for("rh.temps_realises"))
+    if request.method == "POST":
+        fichier = request.files.get("fichier")
+        if not fichier or not fichier.filename:
+            flash("Choisissez un fichier (.xlsx ou .csv).", "danger")
+            return redirect(url_for("rh.temps_realises"))
+        try:
+            compte_rendu = temps.importer(fichier, fichier.filename)
+        except Exception as e:  # fichier illisible, format inattendu…
+            db.session.rollback()
+            flash(f"Import impossible : {e}", "danger")
+            return redirect(url_for("rh.temps_realises"))
+        flash(f"Import terminé : {compte_rendu['enregistrements']} saisie(s) du "
+              f"{compte_rendu['debut']:%d/%m/%Y} au {compte_rendu['fin']:%d/%m/%Y}.", "success")
+    base_etp = temps.heures_par_etp()
+    par_agent_code = temps.heures_par(annee, "agent_code")
+    agents = sorted({db.session.get(Agent, i) for i, _ in par_agent_code},
+                    key=lambda a: (a.nom, a.prenom or ""))
+    codes = sorted({c for _, c in par_agent_code})
+    annees = sorted({t.date.year for t in TempsSaisi.query.with_entities(TempsSaisi.date)
+                     if t.date}, reverse=True)
+    return render_template("rh_temps.html", annee=annee, agents=agents, codes=codes,
+                           heures=par_agent_code, base_etp=base_etp, annees=annees,
+                           unite=request.args.get("unite", "etp"), compte_rendu=compte_rendu,
+                           total_heures=sum(par_agent_code.values()))
 
 
 # --- Compétences ------------------------------------------------------------------------

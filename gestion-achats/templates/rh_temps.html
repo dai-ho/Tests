@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros %}
+{% block titre %}Temps réalisés {{ annee }}{% endblock %}
+{% block contenu %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="mb-0">Temps réalisés {{ annee }}</h3>
+  <div class="btn-group btn-group-sm">
+    <a class="btn {{ 'btn-primary' if unite == 'etp' else 'btn-outline-secondary' }}" href="{{ url_for('rh.temps_realises', unite='etp') }}">ETP</a>
+    <a class="btn {{ 'btn-primary' if unite == 'heures' else 'btn-outline-secondary' }}" href="{{ url_for('rh.temps_realises', unite='heures') }}">Heures</a>
+  </div>
+</div>
+
+{% if compte_rendu %}
+<div class="alert alert-info">
+  <strong>Compte rendu de l'import</strong>
+  <ul class="mb-0 small">
+    <li>{{ compte_rendu.lignes }} ligne(s) lue(s), {{ compte_rendu.enregistrements }} saisie(s) enregistrée(s),
+      {{ compte_rendu.heures|round(1)|etp }} heures, {{ compte_rendu.agents }} personne(s),
+      du {{ compte_rendu.debut|date_fr }} au {{ compte_rendu.fin|date_fr }}.</li>
+    <li>{{ compte_rendu.remplaces }} saisie(s) déjà présente(s) sur cette période remplacée(s).</li>
+    {% if compte_rendu.crees %}<li>Fiche(s) créée(s) : {% for a in compte_rendu.crees %}<a href="{{ url_for('rh.fiche_agent', agent_id=a.id) }}">{{ a.nom_complet }}</a>{{ ', ' if not loop.last }}{% endfor %}
+      — à compléter (fonction, statut, quotité).</li>{% endif %}
+    {% if compte_rendu.partis %}<li>Parmi elles, sans saisie depuis plus de 6 mois, marquée(s) comme parties à la date de leur
+      dernière saisie (à vérifier) : {% for a in compte_rendu.partis %}<a href="{{ url_for('rh.fiche_agent', agent_id=a.id) }}">{{ a.nom_complet }}</a>{{ ', ' if not loop.last }}{% endfor %}.</li>{% endif %}
+    {% if compte_rendu.ignorees %}<li>{{ compte_rendu.ignorees|length }} ligne(s) illisible(s) ignorée(s)
+      (n° {{ compte_rendu.ignorees[:15]|join(', ') }}{{ '…' if compte_rendu.ignorees|length > 15 }}).</li>{% endif %}
+  </ul>
+</div>
+{% endif %}
+
+{% if codes %}
+<p class="small text-muted">{{ total_heures|round(1)|etp }} heures saisies en {{ annee }}
+  ({{ (total_heures / base_etp)|round(2)|etp }} ETP). Autre année : changez l'année dans le filtre
+  {% if annees %}(données disponibles : {{ annees|join(', ') }}){% endif %}.</p>
+<div class="table-responsive mb-4"><table class="table table-sm table-hover align-middle grille-charge">
+  <thead><tr><th>Personne</th>{% for c in codes %}<th class="num">{{ c }}</th>{% endfor %}<th class="num">Total</th></tr></thead>
+  <tbody>
+  {% for a in agents %}
+    <tr><td><a href="{{ url_for('rh.fiche_agent', agent_id=a.id) }}#realise">{{ a.nom_complet }}</a></td>
+      {% set ns = namespace(total=0) %}
+      {% for c in codes %}{% set h = heures.get((a.id, c), 0) %}{% set ns.total = ns.total + h %}
+        <td class="num">{% if h %}{{ (h / base_etp)|round(2)|etp if unite == 'etp' else h|round(1)|etp }}{% endif %}</td>
+      {% endfor %}
+      <td class="num fw-bold">{{ (ns.total / base_etp)|round(2)|etp if unite == 'etp' else ns.total|round(1)|etp }}</td></tr>
+  {% endfor %}
+  </tbody>
+  <tfoot class="fw-bold"><tr><td>Total</td>
+    {% for c in codes %}{% set ns2 = namespace(t=0) %}{% for a in agents %}{% set ns2.t = ns2.t + heures.get((a.id, c), 0) %}{% endfor %}
+      <td class="num">{{ (ns2.t / base_etp)|round(2)|etp if unite == 'etp' else ns2.t|round(1)|etp }}</td>{% endfor %}
+    <td class="num">{{ (total_heures / base_etp)|round(2)|etp if unite == 'etp' else total_heures|round(1)|etp }}</td></tr></tfoot>
+</table></div>
+{% else %}
+  <p class="text-muted">Aucun temps importé pour {{ annee }}{% if annees %} (données disponibles : {{ annees|join(', ') }} — changez l'année dans le filtre){% endif %}.</p>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <form method="post" enctype="multipart/form-data" class="card card-body">
+      <h6>Importer le marquage des temps</h6>
+      <p class="small text-muted mb-2">Fichier Excel (.xlsx) ou CSV à 4 colonnes, dans cet ordre :
+        <em>Genre Prénom NOM</em> · <em>Objet récepteur</em> · <em>date</em> · <em>Somme de Heures saisies</em>.</p>
+      <ul class="small text-muted">
+        <li>Les saisies déjà présentes sur la période couverte par le fichier (de sa 1re à sa dernière date) sont
+          <strong>remplacées</strong> : réimporter un fichier corrigé ne crée pas de doublon.</li>
+        <li>Les personnes inconnues sont créées (à compléter ensuite) ; le rapprochement se fait sur le prénom et le nom,
+          sans tenir compte des majuscules ni des accents.</li>
+        <li>Lignes de total, en-têtes et cellules vides d'un tableau croisé sont gérés.</li>
+      </ul>
+      <div class="d-flex gap-2"><input type="file" name="fichier" accept=".xlsx,.xlsm,.csv,.txt" class="form-control" required>
+        <button class="btn btn-primary">Importer</button></div>
+    </form>
+  </div>
+  <div class="col-lg-5">
+    <form method="post" class="card card-body">
+      <h6>Conversion heures → ETP</h6>
+      <div class="d-flex align-items-center gap-2">
+        <input name="base_etp" class="form-control" style="width: 7rem" inputmode="decimal" value="{{ base_etp|etp }}">
+        <span>heures = 1 ETP sur une année</span>
+        <button class="btn btn-sm btn-outline-primary ms-auto">Enregistrer</button>
+      </div>
+      <div class="form-text">1 607 h = durée légale annuelle ; à ajuster selon vos règles (jours de congés, temps partiel compris dans les heures saisies).</div>
+    </form>
+  </div>
+</div>
+{% endblock %}

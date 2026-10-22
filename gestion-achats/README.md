@@ -53,8 +53,13 @@ Une barre latérale donne accès à deux espaces :
     (effectif, capacité, charge planifiée, écarts de charge, compétences à risque, formations à venir).
   - **Fiche d'une personne** : plan de charge par année, points forts et axes de progrès (datés), niveaux de
     compétence (1 Notions → 4 Expert), formations.
-  - **Plan de charge** : grille personnes × projets / activités de l'année, en fractions d'ETP, totaux et écarts
-    à la quotité recalculés à la saisie (surcharge, sous-charge).
+  - **Plan de charge** : grille personnes × centres de coût (éléments récepteurs) de l'année, en fractions d'ETP,
+    totaux et écarts à la quotité recalculés à la saisie (surcharge, sous-charge) ; le réalisé est rappelé sous
+    chaque case.
+  - **Temps réalisés** : import du marquage des temps (Excel ou CSV à 4 colonnes : Genre Prénom NOM, objet
+    récepteur, date, heures saisies). Les saisies de la période couverte par le fichier sont remplacées (pas de
+    doublon en cas de réimport), les personnes inconnues sont créées. Synthèse par personne et centre de coût, en
+    heures ou en ETP (base de conversion réglable, 1 607 h = 1 ETP par défaut).
   - **Compétences** : référentiel et matrice de l'équipe ; une compétence maîtrisée (niveau ≥ 3) par moins de
     2 personnes est signalée « à risque ».
   - **Formations** : prévues, réalisées ou annulées, rattachables à une compétence.
@@ -109,6 +114,7 @@ dans `donnees/sauvegardes/`.
 | `models.py` | Modèle de données (DA, postes DA, BdC, postes BdC) |
 | `regles.py` | Règles de couleur des lignes |
 | `protection.py` | Chiffrement de la base, clé protégée par la carte à puce, verrouillage |
+| `temps.py` | Import du marquage des temps, conversion heures → ETP |
 | `rh.py` | Gestion RH : équipe, compétences, plan de charge, formations |
 | `formulaires.py` | Lecture des formulaires, filtre année / projet (communs) |
 | `budgets.py` | Calcul des situations budgétaires (budget, DA, BdC, disponible, alertes) |
