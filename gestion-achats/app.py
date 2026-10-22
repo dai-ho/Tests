@@ -58,6 +58,10 @@ def mettre_de_cote_base_obsolete(chemin):
 
 def migrer():
     """Mises à jour de la structure d'une base existante."""
+    with db.engine.begin() as cnx:
+        # Codes illisibles (tabulation, retour à la ligne, guillemet) laissés par un import raté
+        cnx.execute(text("DELETE FROM element_recepteur WHERE instr(code, char(9)) OR "
+                         "instr(code, char(10)) OR instr(code, char(13)) OR instr(code, '\"')"))
     colonnes = {c["name"] for c in inspect(db.engine).get_columns("poste_commande")}
     if "societe" not in colonnes:
         # La société passe du BdC à chacun de ses postes

@@ -364,7 +364,9 @@ def importer_codes():
 @bp.post("/codes/actions")
 def actions_codes():
     """Action groupée sur les codes cochés : rattacher à une activité (existante ou nouvelle),
-    retirer de leur activité, changer de type."""
+    retirer de leur activité, changer de type, supprimer du référentiel.
+    Chaque case vaut « id:<n> » pour un code du référentiel (désigné par son identifiant, quel
+    que soit son texte), ou le code lui-même pour un code utilisé mais pas encore référencé."""
     choisis = [c for c in request.form.getlist("code") if c.strip()]
     retour = url_for("rh.codes", type=request.form.get("type_filtre") or None)
     if not choisis:
@@ -372,10 +374,16 @@ def actions_codes():
         return redirect(retour)
     elements = referentiel.elements_par_code()
 
-    def element(code):
-        e = elements.get(referentiel.cle(code))
-        if e is None:
-            e = elements[referentiel.cle(code)] = ElementRecepteur(code=code.strip())
+    def existant(jeton):
+        if jeton.startswith("id:") and jeton[3:].isdigit():
+            return db.session.get(ElementRecepteur, int(jeton[3:]))
+        return elements.get(referentiel.cle(jeton))
+
+    def element(jeton):
+        """Code du référentiel ; un code pas encore référencé y est ajouté."""
+        e = existant(jeton)
+        if e is None and not jeton.startswith("id:"):
+            e = elements[referentiel.cle(jeton)] = ElementRecepteur(code=jeton.strip())
             db.session.add(e)
         return e
 
@@ -396,8 +404,8 @@ def actions_codes():
         message = f"rattaché(s) à la nouvelle activité « {nom} » ({type_})"
     elif action == "supprimer":
         supprimes = 0
-        for code in choisis:
-            e = elements.get(referentiel.cle(code))
+        for jeton in choisis:
+            e = existant(jeton)
             if e is not None:
                 db.session.delete(e)
                 supprimes += 1
@@ -406,8 +414,9 @@ def actions_codes():
               "ne sont pas modifiés).", "success")
         return redirect(retour)
     elif action == "retirer":
-        for code in choisis:
-            element(code).activite = None
+        for jeton in choisis:
+            if element(jeton):
+                element(jeton).activite = None
         db.session.commit()
         flash(f"{len(choisis)} code(s) retiré(s) de leur activité.", "success")
         return redirect(retour)
@@ -416,8 +425,10 @@ def actions_codes():
         if type_ not in TYPES_CODE:
             flash("Choisissez un type.", "warning")
             return redirect(retour)
-        for code in choisis:
-            e = element(code)
+        for jeton in choisis:
+            e = element(jeton)
+            if e is None:
+                continue
             if e.activite and e.activite.type != type_:
                 e.activite = None
             e.type = type_
@@ -426,12 +437,25 @@ def actions_codes():
         return redirect(retour)
     else:
         return redirect(retour)
-    for code in choisis:  # rattachement : le code prend le type de l'activité
-        e = element(code)
+    for jeton in choisis:  # rattachement : le code prend le type de l'activité
+        e = element(jeton)
+        if e is None:
+            continue
         e.activite, e.type = cible, cible.type
     db.session.commit()
     flash(f"{len(choisis)} code(s) {message}.", "success")
     return redirect(retour)
+
+
+@bp.post("/codes/<int:element_id>/supprimer")
+def supprimer_code(element_id):
+    e = db.get_or_404(ElementRecepteur, element_id)
+    type_ = e.type
+    db.session.delete(e)
+    db.session.commit()
+    flash("Code supprimé du référentiel (les temps et le plan de charge ne sont pas modifiés).",
+          "success")
+    return redirect(url_for("rh.codes", type=request.form.get("type_filtre") or type_ or None))
 
 
 @bp.post("/activites/<int:activite_id>")

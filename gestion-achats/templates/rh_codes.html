@@ -43,18 +43,21 @@
   <input type="hidden" name="type_filtre" value="{{ type_filtre }}">
   <div class="table-responsive mb-3"><table class="table table-sm table-hover align-middle" id="table-codes">
     <thead><tr><th style="width: 2rem"><input type="checkbox" class="form-check-input" id="tout-cocher" title="Tout cocher (lignes visibles)"></th>
-      <th>Code</th><th>Désignation SAP</th><th>Description</th><th>Activité</th></tr></thead>
+      <th>Code</th><th>Désignation SAP</th><th>Description</th><th>Activité</th><th></th></tr></thead>
     {% for type_, activites in groupes %}
     <tbody>
-      <tr class="ligne-type"><td colspan="5">{{ type_ }}</td></tr>
+      <tr class="ligne-type"><td colspan="6">{{ type_ }}</td></tr>
       {% for activite, liste in activites %}
         {% for code in liste %}{% set e = elements.get(cle(code)) %}
         <tr>
-          <td><input type="checkbox" class="form-check-input case-code" name="code" value="{{ code }}"></td>
-          <td class="text-nowrap">{{ code }}</td>
+          <td><input type="checkbox" class="form-check-input case-code" name="code" value="{{ 'id:' ~ e.id if e else code }}"></td>
+          <td class="text-nowrap text-truncate" style="max-width: 16rem" title="{{ code }}">{{ code }}</td>
           <td class="small">{{ e.designation if e and e.designation }}</td>
           <td class="small text-muted">{{ e.description if e and e.description }}</td>
           <td class="small">{% if e and e.activite %}{{ e.activite.nom }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td class="actions">{% if e %}<button class="btn btn-sm btn-outline-danger" title="Supprimer ce code du référentiel"
+              formaction="{{ url_for('rh.supprimer_code', element_id=e.id) }}" formnovalidate
+              onclick="return confirm('Supprimer ce code du référentiel ?')">✕</button>{% endif %}</td>
         </tr>
         {% endfor %}
       {% endfor %}
