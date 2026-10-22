@@ -391,3 +391,38 @@ class TempsSaisi(db.Model):
     heures = db.Column(db.Float, nullable=False)
 
     agent = db.relationship("Agent", back_populates="temps")
+
+
+# --- Référentiel des centres de coût (éléments récepteurs / EOTP) -----------------------
+
+TYPES_CODE = ["Processus ABC", "Structure", "R&T, Démonstrateur, PASO-Phases 0, EU-SST, GSTP",
+              "Moyens techniques", "Projets (hors FR2030)", "Activités FR2030"]
+TYPE_NON_CLASSE = "Non classé"
+
+
+class Activite(db.Model):
+    """Regroupement manuel de centres de coût d'un même type (ex. projet TOTO)."""
+    __tablename__ = "activite"
+    __table_args__ = (db.UniqueConstraint("type", "nom"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    type = db.Column(db.String(100), nullable=False)
+    nom = db.Column(db.String(150), nullable=False)
+    description = db.Column(db.Text)
+
+    codes = db.relationship("ElementRecepteur", back_populates="activite",
+                            order_by="ElementRecepteur.code")
+
+
+class ElementRecepteur(db.Model):
+    """Centre de coût / élément récepteur (code EOTP)."""
+    __tablename__ = "element_recepteur"
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(100), unique=True, nullable=False)
+    type = db.Column(db.String(100))
+    designation = db.Column(db.String(255))      # désignation SAP
+    description = db.Column(db.Text)
+    activite_id = db.Column(db.Integer, db.ForeignKey("activite.id"))
+
+    activite = db.relationship("Activite", back_populates="codes")

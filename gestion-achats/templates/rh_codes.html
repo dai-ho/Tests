@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros %}
+{% block titre %}Codes et activités{% endblock %}
+{% block contenu %}
+<h3>Codes et activités</h3>
+<p class="small text-muted">Référentiel des centres de coût (codes EOTP) : chaque code a un type, et peut être rattaché à une
+  activité de ce type. Le plan de charge et les temps réalisés sont regroupés par type puis par activité.</p>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-7">
+    <form method="post" action="{{ url_for('rh.importer_codes') }}" enctype="multipart/form-data" class="card card-body h-100">
+      <h6>Importer les codes d'un type (CSV)</h6>
+      <p class="small text-muted mb-2">Colonnes : <em>code EOTP</em> · <em>désignation SAP</em> · <em>description</em> · <em>cible MSO</em>
+        (ignorée). Les codes existants sont mis à jour ; leur rattachement à une activité est conservé.</p>
+      <div class="d-flex flex-wrap gap-2">
+        <select name="type" class="form-select" style="max-width: 22rem" required>
+          <option value="">— type des codes du fichier —</option>
+          {% for t in types %}<option {{ 'selected' if t == type_filtre }}>{{ t }}</option>{% endfor %}
+        </select>
+        <input type="file" name="fichier" accept=".csv,.txt" class="form-control" style="max-width: 22rem" required>
+        <button class="btn btn-primary">Importer</button>
+      </div>
+    </form>
+  </div>
+  <div class="col-xl-5">
+    <div class="card card-body h-100">
+      <h6>Afficher</h6>
+      <div class="d-flex flex-wrap gap-1">
+        <a class="btn btn-sm {{ 'btn-primary' if not type_filtre else 'btn-outline-secondary' }}" href="{{ url_for('rh.codes') }}">Tous</a>
+        {% for t in types + [type_non_classe] if comptes.get(t) %}
+          <a class="btn btn-sm {{ 'btn-primary' if type_filtre == t else 'btn-outline-secondary' }}" href="{{ url_for('rh.codes', type=t) }}">{{ t }} <span class="opacity-75">{{ comptes[t] }}</span></a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if not groupes %}
+  <p class="text-muted">Aucun code : importez les fichiers CSV de chaque type, ou importez des temps réalisés.</p>
+{% else %}
+{{ macros.filtre("table-codes", "Filtrer : code, désignation, activité…") }}
+<form method="post" action="{{ url_for('rh.actions_codes') }}" id="form-codes">
+  <input type="hidden" name="type_filtre" value="{{ type_filtre }}">
+  <div class="table-responsive mb-3"><table class="table table-sm table-hover align-middle" id="table-codes">
+    <thead><tr><th style="width: 2rem"><input type="checkbox" class="form-check-input" id="tout-cocher" title="Tout cocher (lignes visibles)"></th>
+      <th>Code</th><th>Désignation SAP</th><th>Description</th><th>Activité</th></tr></thead>
+    {% for type_, activites in groupes %}
+    <tbody>
+      <tr class="ligne-type"><td colspan="5">{{ type_ }}</td></tr>
+      {% for activite, liste in activites %}
+        {% for code in liste %}{% set e = elements.get(cle(code)) %}
+        <tr>
+          <td><input type="checkbox" class="form-check-input case-code" name="code" value="{{ code }}"></td>
+          <td class="text-nowrap">{{ code }}</td>
+          <td class="small">{{ e.designation if e and e.designation }}</td>
+          <td class="small text-muted">{{ e.description if e and e.description }}</td>
+          <td class="small">{% if e and e.activite %}{{ e.activite.nom }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      {% endfor %}
+    </tbody>
+    {% endfor %}
+  </table></div>
+
+  <div class="card card-body barre-actions">
+    <div class="small mb-2"><strong id="nb-coches">0</strong> code(s) coché(s) :</div>
+    <div class="d-flex flex-wrap gap-3 align-items-end">
+      <div class="d-flex gap-2 align-items-end">
+        <select name="activite_id" class="form-select form-select-sm" style="max-width: 20rem">
+          <option value="">— activité existante —</option>
+          {% for t, liste in activites.items() if liste %}<optgroup label="{{ t }}">
+            {% for a in liste %}<option value="{{ a.id }}">{{ a.nom }} ({{ a.codes|length }})</option>{% endfor %}</optgroup>{% endfor %}
+        </select>
+        <button class="btn btn-sm btn-primary" name="action" value="rattacher">Rattacher</button>
+      </div>
+      <div class="d-flex gap-2 align-items-end">
+        <input name="nouvelle_activite" class="form-control form-control-sm" placeholder="Nouvelle activité (ex. TOTO)" style="width: 13rem">
+        <select name="type_activite" class="form-select form-select-sm" style="max-width: 16rem">
+          {% for t in types %}<option {{ 'selected' if t == type_filtre }}>{{ t }}</option>{% endfor %}
+        </select>
+        <button class="btn btn-sm btn-outline-primary" name="action" value="creer">Créer et rattacher</button>
+      </div>
+      <div class="d-flex gap-2 align-items-end">
+        <select name="nouveau_type" class="form-select form-select-sm" style="max-width: 16rem">
+          {% for t in types %}<option>{{ t }}</option>{% endfor %}
+        </select>
+        <button class="btn btn-sm btn-outline-secondary" name="action" value="type">Changer le type</button>
+      </div>
+      <button class="btn btn-sm btn-outline-danger" name="action" value="retirer">Retirer de l'activité</button>
+    </div>
+  </div>
+</form>
+{% endif %}
+
+{% set toutes = activites.values()|sum(start=[]) %}
+{% if toutes %}
+<h5 class="mt-4">Activités</h5>
+<div class="table-responsive"><table class="table table-sm align-middle" style="max-width: 70rem">
+  <thead><tr><th>Type</th><th>Activité</th><th>Description</th><th class="num">Codes</th><th></th></tr></thead>
+  <tbody>
+  {% for t, liste in activites.items() %}{% for a in liste %}
+    <tr>
+      <td class="small text-muted">{{ t }}</td>
+      <td colspan="2"><form method="post" action="{{ url_for('rh.modifier_activite', activite_id=a.id) }}" class="d-flex gap-2">
+        <input name="nom" class="form-control form-control-sm" value="{{ a.nom }}" style="max-width: 14rem">
+        <input name="description" class="form-control form-control-sm" value="{{ a.description or '' }}" placeholder="Description">
+        <button class="btn btn-sm btn-outline-primary">Renommer</button></form></td>
+      <td class="num">{{ a.codes|length }}</td>
+      <td class="actions"><form method="post" action="{{ url_for('rh.modifier_activite', activite_id=a.id) }}"
+            data-confirmer="Supprimer l'activité « {{ a.nom }} » ? Ses codes restent dans le référentiel, sans activité.">
+        <input type="hidden" name="supprimer" value="1"><button class="btn btn-sm btn-outline-danger">✕</button></form></td>
+    </tr>
+  {% endfor %}{% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+<script>
+  const cases = () => Array.from(document.querySelectorAll(".case-code"));
+  const majCompte = () => (document.getElementById("nb-coches").textContent = cases().filter((c) => c.checked).length);
+  document.getElementById("tout-cocher")?.addEventListener("change", (e) => {
+    cases().filter((c) => !c.closest("tr").hidden).forEach((c) => (c.checked = e.target.checked));
+    majCompte();
+  });
+  cases().forEach((c) => c.addEventListener("change", majCompte));
+</script>
+{% endblock %}

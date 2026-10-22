@@ -132,3 +132,22 @@ td.actions form { display: inline; }
 .sous-charge { color: #d9b45a !important; }
 .matrice th.vertical { writing-mode: vertical-rl; transform: rotate(180deg); vertical-align: bottom;
   text-transform: none; letter-spacing: 0; font-weight: 500; max-height: 11rem; }
+
+/* Plan de charge et temps réalisés regroupés (type > activité > code), une colonne par personne */
+.plan-charge th.vertical { writing-mode: vertical-rl; transform: rotate(180deg); text-transform: none; letter-spacing: 0;
+  font-weight: 500; vertical-align: bottom; white-space: nowrap; max-height: 10rem; padding: .4rem .2rem; }
+.plan-charge .col-libelle { min-width: 15rem; }
+.plan-charge td:first-child, .plan-charge th:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); }
+.plan-charge .case-etp { width: 3.4rem; padding: .1rem .3rem; text-align: right; font-variant-numeric: tabular-nums; margin-left: auto; }
+.plan-charge .realise { font-size: .7rem; color: var(--texte-attenue); white-space: nowrap; }
+.plan-charge tr.ligne-type td { --bs-table-bg: #20262d; font-weight: 600; color: #e4e8ed; border-top: 2px solid #39414a; }
+.plan-charge tr.ligne-type td:first-child { background: #20262d; }
+.plan-charge tr.ligne-activite { cursor: pointer; }
+.plan-charge tr.ligne-activite td { --bs-table-bg: #1a1e23; }
+.plan-charge tr.ligne-activite td:first-child { background: #1a1e23; }
+.plan-charge tr.ligne-activite:hover td { --bs-table-bg: #242a31; }
+.plan-charge .chevron { display: inline-block; width: 1rem; color: var(--texte-attenue); transition: transform .15s; }
+.plan-charge tr.ouverte .chevron { transform: rotate(90deg); }
+.plan-charge tfoot td { border-top: 1px solid #39414a; }
+.barre-actions { position: sticky; bottom: 0; z-index: 5; background: var(--surface); padding: .6rem; border-top: 1px solid var(--bordure); }
+#table-codes tr.ligne-type td { --bs-table-bg: #20262d; font-weight: 600; color: #e4e8ed; }

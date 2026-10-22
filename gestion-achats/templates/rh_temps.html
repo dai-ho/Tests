@@ -32,23 +32,51 @@
 <p class="small text-muted">{{ total_heures|round(1)|etp }} heures saisies en {{ annee }}
   ({{ (total_heures / base_etp)|round(2)|etp }} ETP). Autre année : changez l'année dans le filtre
   {% if annees %}(données disponibles : {{ annees|join(', ') }}){% endif %}.</p>
-<div class="table-responsive mb-4"><table class="table table-sm table-hover align-middle grille-charge">
-  <thead><tr><th>Personne</th>{% for c in codes %}<th class="num">{{ c }}</th>{% endfor %}<th class="num">Total</th></tr></thead>
+{# Valeur affichée selon l'unité choisie (heures stockées, converties en ETP) #}
+{% macro valeur(h) %}{% if h %}{{ (h / base_etp)|round(2)|etp if unite == 'etp' else h|round(1)|etp }}{% endif %}{% endmacro %}
+<div class="d-flex gap-2 mb-2">
+  <button type="button" class="btn btn-sm btn-outline-secondary" id="tout-deplier">Tout déplier</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" id="tout-replier">Tout replier</button>
+</div>
+<div class="table-responsive mb-4"><table class="table table-sm align-middle plan-charge">
+  <thead><tr><th class="col-libelle">Type / activité / code</th>
+    {% for a in agents %}<th class="vertical num" title="{{ a.nom_complet }}"><a href="{{ url_for('rh.fiche_agent', agent_id=a.id) }}#realise">{{ a.prenom[0] ~ '. ' if a.prenom }}{{ a.nom }}</a></th>{% endfor %}
+    <th class="num">Total</th></tr></thead>
   <tbody>
-  {% for a in agents %}
-    <tr><td><a href="{{ url_for('rh.fiche_agent', agent_id=a.id) }}#realise">{{ a.nom_complet }}</a></td>
-      {% set ns = namespace(total=0) %}
-      {% for c in codes %}{% set h = heures.get((a.id, c), 0) %}{% set ns.total = ns.total + h %}
-        <td class="num">{% if h %}{{ (h / base_etp)|round(2)|etp if unite == 'etp' else h|round(1)|etp }}{% endif %}</td>
+  {% for type_, activites in groupes %}
+    {% set ns = namespace(t=0) %}{% for a in agents %}{% set ns.t = ns.t + sous_totaux.get((a.id, type_), 0) %}{% endfor %}
+    <tr class="ligne-type"><td>{{ type_ }}</td>
+      {% for a in agents %}<td class="num">{{ valeur(sous_totaux.get((a.id, type_))) }}</td>{% endfor %}
+      <td class="num">{{ valeur(ns.t) }}</td></tr>
+    {% for activite, liste in activites %}{% set groupe = type_ ~ '¦' ~ activite %}
+      {% set nsa = namespace(t=0) %}{% for a in agents %}{% set nsa.t = nsa.t + sous_totaux.get((a.id, type_, activite), 0) %}{% endfor %}
+      <tr class="ligne-activite" data-groupe="{{ groupe }}"><td><span class="chevron">▸</span> {{ activite }} <span class="text-muted small">({{ liste|length }})</span></td>
+        {% for a in agents %}<td class="num">{{ valeur(sous_totaux.get((a.id, type_, activite))) }}</td>{% endfor %}
+        <td class="num">{{ valeur(nsa.t) }}</td></tr>
+      {% for c in liste %}
+        {% set nsc = namespace(t=0) %}{% for a in agents %}{% set nsc.t = nsc.t + heures.get((a.id, c), 0) %}{% endfor %}
+        <tr class="ligne-code" data-groupe="{{ groupe }}" hidden>
+          <td class="ps-4 text-nowrap" title="{{ designations.get(c, '') }}">{{ c }}</td>
+          {% for a in agents %}<td class="num">{{ valeur(heures.get((a.id, c))) }}</td>{% endfor %}
+          <td class="num">{{ valeur(nsc.t) }}</td></tr>
       {% endfor %}
-      <td class="num fw-bold">{{ (ns.total / base_etp)|round(2)|etp if unite == 'etp' else ns.total|round(1)|etp }}</td></tr>
+    {% endfor %}
   {% endfor %}
   </tbody>
   <tfoot class="fw-bold"><tr><td>Total</td>
-    {% for c in codes %}{% set ns2 = namespace(t=0) %}{% for a in agents %}{% set ns2.t = ns2.t + heures.get((a.id, c), 0) %}{% endfor %}
-      <td class="num">{{ (ns2.t / base_etp)|round(2)|etp if unite == 'etp' else ns2.t|round(1)|etp }}</td>{% endfor %}
-    <td class="num">{{ (total_heures / base_etp)|round(2)|etp if unite == 'etp' else total_heures|round(1)|etp }}</td></tr></tfoot>
+    {% for a in agents %}{% set nst = namespace(t=0) %}{% for c in codes %}{% set nst.t = nst.t + heures.get((a.id, c), 0) %}{% endfor %}
+      <td class="num">{{ valeur(nst.t) }}</td>{% endfor %}
+    <td class="num">{{ valeur(total_heures) }}</td></tr></tfoot>
 </table></div>
+<script>
+  const basculer = (tr, ouvrir) => {
+    document.querySelectorAll(`tr.ligne-code[data-groupe="${CSS.escape(tr.dataset.groupe)}"]`).forEach((l) => (l.hidden = !ouvrir));
+    tr.classList.toggle("ouverte", ouvrir);
+  };
+  document.querySelectorAll("tr.ligne-activite").forEach((tr) => tr.addEventListener("click", () => basculer(tr, !tr.classList.contains("ouverte"))));
+  document.getElementById("tout-deplier").addEventListener("click", () => document.querySelectorAll("tr.ligne-activite").forEach((tr) => basculer(tr, true)));
+  document.getElementById("tout-replier").addEventListener("click", () => document.querySelectorAll("tr.ligne-activite").forEach((tr) => basculer(tr, false)));
+</script>
 {% else %}
   <p class="text-muted">Aucun temps importé pour {{ annee }}{% if annees %} (données disponibles : {{ annees|join(', ') }} — changez l'année dans le filtre){% endif %}.</p>
 {% endif %}

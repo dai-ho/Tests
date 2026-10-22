@@ -53,9 +53,12 @@ Une barre latérale donne accès à deux espaces :
     (effectif, capacité, charge planifiée, écarts de charge, compétences à risque, formations à venir).
   - **Fiche d'une personne** : plan de charge par année, points forts et axes de progrès (datés), niveaux de
     compétence (1 Notions → 4 Expert), formations.
-  - **Plan de charge** : grille personnes × centres de coût (éléments récepteurs) de l'année, en fractions d'ETP,
-    totaux et écarts à la quotité recalculés à la saisie (surcharge, sous-charge) ; le réalisé est rappelé sous
-    chaque case.
+  - **Plan de charge** : une ligne par centre de coût, regroupée par type puis par activité (groupes repliables,
+    sous-totaux), une colonne par personne ; ETP de l'année, totaux et écarts à la quotité recalculés à la saisie
+    (surcharge, sous-charge) ; le réalisé est rappelé sous chaque valeur.
+  - **Codes et activités** : référentiel des codes EOTP (type, désignation SAP, description) importé par type
+    depuis un CSV (code EOTP, désignation SAP, description, cible MSO — ignorée) ; regroupement manuel des codes
+    en activités ; les codes utilisés mais absents du référentiel apparaissent en « Non classé ».
   - **Temps réalisés** : import du marquage des temps (Excel ou CSV à 4 colonnes : Genre Prénom NOM, objet
     récepteur, date, heures saisies). Les saisies de la période couverte par le fichier sont remplacées (pas de
     doublon en cas de réimport), les personnes inconnues sont créées. Synthèse par personne et centre de coût, en
@@ -115,6 +118,7 @@ dans `donnees/sauvegardes/`.
 | `regles.py` | Règles de couleur des lignes |
 | `protection.py` | Chiffrement de la base, clé protégée par la carte à puce, verrouillage |
 | `temps.py` | Import du marquage des temps, conversion heures → ETP |
+| `referentiel.py` | Référentiel des codes EOTP, import CSV, regroupement type → activité → code |
 | `rh.py` | Gestion RH : équipe, compétences, plan de charge, formations |
 | `formulaires.py` | Lecture des formulaires, filtre année / projet (communs) |
 | `budgets.py` | Calcul des situations budgétaires (budget, DA, BdC, disponible, alertes) |

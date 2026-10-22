@@ -6,9 +6,11 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from formulaires import (champ, champ_date, champ_entier, champ_montant, enregistrer,
                          filtre_courant, valeurs_distinctes)
+import referentiel
 import temps
-from models import (NIVEAUX, STATUTS_AGENT, STATUTS_FORMATION, TYPES_APPRECIATION, Affectation,
-                    Agent, Appreciation, Competence, Formation, NiveauCompetence, TempsSaisi, db)
+from models import (NIVEAUX, STATUTS_AGENT, STATUTS_FORMATION, TYPE_NON_CLASSE, TYPES_APPRECIATION,
+                    TYPES_CODE, Activite, Affectation, Agent, Appreciation, Competence,
+                    ElementRecepteur, Formation, NiveauCompetence, TempsSaisi, db)
 
 bp = Blueprint("rh", __name__, url_prefix="/rh")
 
@@ -250,13 +252,30 @@ def plan_charge():
     base_etp = temps.heures_par_etp()
     realise = {k: h / base_etp for k, h in temps.heures_par(annee, "agent_code").items()}
     ids = {a.id for a in agents}
-    projets = sorted({a.projet for a in affectations} | {c for (i, c) in realise if i in ids})
-    grille = {(a.agent_id, a.projet): a.etp for a in affectations}
-    return render_template("rh_plan_charge.html", annee=annee, agents=agents, projets=projets,
-                           grille=grille, projets_connus=temps.codes_connus(), realise=realise,
-                           realise_agent={k: h / base_etp
-                                          for k, h in temps.heures_par(annee, "agent").items()},
-                           ecarts={a.id: ecart_charge(a, annee) for a in agents})
+    codes = {a.projet for a in affectations if a.agent_id in ids} | {c for (i, c) in realise if i in ids}
+    groupes = referentiel.regrouper(codes)
+    # Ordre d'affichage des codes = ordre des champs du formulaire (etp_<agent>_<index>)
+    ordre = [c for _, activites in groupes for _, liste in activites for c in liste]
+    return render_template(
+        "rh_plan_charge.html", annee=annee, agents=agents, groupes=groupes, ordre=ordre,
+        index={c: i for i, c in enumerate(ordre)},
+        grille={(a.agent_id, a.projet): a.etp for a in affectations},
+        realise=realise, sous_totaux_realise=sous_totaux(groupes, realise, agents),
+        designations=referentiel.designations(codes), codes_connus=temps.codes_connus(),
+        realise_agent={k: h / base_etp for k, h in temps.heures_par(annee, "agent").items()},
+        ecarts={a.id: ecart_charge(a, annee) for a in agents})
+
+
+def sous_totaux(groupes, valeurs, agents):
+    """Sommes par (agent, type) et (agent, type, activité) de valeurs indexées par (agent, code)."""
+    resultat = {}
+    for type_, activites in groupes:
+        for activite, codes in activites:
+            for a in agents:
+                v = sum(valeurs.get((a.id, c), 0) for c in codes)
+                resultat[(a.id, type_, activite)] = v
+                resultat[(a.id, type_)] = resultat.get((a.id, type_), 0) + v
+    return resultat
 
 
 # --- Temps réalisés (marquage des temps importé) -------------------------------------------
@@ -293,12 +312,130 @@ def temps_realises():
     agents = sorted({db.session.get(Agent, i) for i, _ in par_agent_code},
                     key=lambda a: (a.nom, a.prenom or ""))
     codes = sorted({c for _, c in par_agent_code})
+    groupes = referentiel.regrouper(codes)
     annees = sorted({t.date.year for t in TempsSaisi.query.with_entities(TempsSaisi.date)
                      if t.date}, reverse=True)
     return render_template("rh_temps.html", annee=annee, agents=agents, codes=codes,
                            heures=par_agent_code, base_etp=base_etp, annees=annees,
+                           groupes=groupes, sous_totaux=sous_totaux(groupes, par_agent_code, agents),
+                           designations=referentiel.designations(codes),
                            unite=request.args.get("unite", "etp"), compte_rendu=compte_rendu,
                            total_heures=sum(par_agent_code.values()))
+
+
+# --- Codes (centres de coût) et activités ------------------------------------------------
+
+@bp.route("/codes")
+def codes():
+    """Référentiel des codes, groupés par type puis activité ; les codes utilisés (temps,
+    DA, plan de charge…) mais absents du référentiel apparaissent en « Non classé »."""
+    type_filtre = request.args.get("type", "")
+    elements = referentiel.elements_par_code()
+    utilises = {referentiel.cle(c): c for c in temps.codes_connus()}
+    tous = [e.code for e in elements.values()] + [c for k, c in utilises.items() if k not in elements]
+    groupes = referentiel.regrouper(tous)
+    if type_filtre:
+        groupes = [g for g in groupes if g[0] == type_filtre]
+    comptes = {t: sum(len(l) for _, l in acts) for t, acts in referentiel.regrouper(tous)}
+    return render_template("rh_codes.html", groupes=groupes, elements=elements, types=TYPES_CODE,
+                           type_non_classe=TYPE_NON_CLASSE, type_filtre=type_filtre,
+                           comptes=comptes, activites=referentiel.activites_par_type(),
+                           cle=referentiel.cle)
+
+
+@bp.post("/codes/import")
+def importer_codes():
+    type_ = request.form.get("type")
+    fichier = request.files.get("fichier")
+    if type_ not in TYPES_CODE or not fichier or not fichier.filename:
+        flash("Choisissez le type et le fichier CSV.", "danger")
+        return redirect(url_for("rh.codes"))
+    try:
+        crees, maj, ignorees = referentiel.importer_csv(fichier.read(), type_)
+    except Exception as e:  # fichier illisible
+        db.session.rollback()
+        flash(f"Import impossible : {e}", "danger")
+        return redirect(url_for("rh.codes"))
+    flash(f"« {type_} » : {crees} code(s) ajouté(s), {maj} mis à jour"
+          + (f", {len(ignorees)} ligne(s) ignorée(s)" if ignorees else "") + ".", "success")
+    return redirect(url_for("rh.codes", type=type_))
+
+
+@bp.post("/codes/actions")
+def actions_codes():
+    """Action groupée sur les codes cochés : rattacher à une activité (existante ou nouvelle),
+    retirer de leur activité, changer de type."""
+    choisis = [c for c in request.form.getlist("code") if c.strip()]
+    retour = url_for("rh.codes", type=request.form.get("type_filtre") or None)
+    if not choisis:
+        flash("Cochez au moins un code.", "warning")
+        return redirect(retour)
+    elements = referentiel.elements_par_code()
+
+    def element(code):
+        e = elements.get(referentiel.cle(code))
+        if e is None:
+            e = elements[referentiel.cle(code)] = ElementRecepteur(code=code.strip())
+            db.session.add(e)
+        return e
+
+    action = request.form.get("action")
+    if action == "rattacher":
+        activite = db.session.get(Activite, request.form.get("activite_id", type=int) or 0)
+        if activite is None:
+            flash("Choisissez une activité.", "warning")
+            return redirect(retour)
+        cible, message = activite, f"rattaché(s) à « {activite.nom} »"
+    elif action == "creer":
+        nom, type_ = champ("nouvelle_activite"), champ("type_activite")
+        if not nom or type_ not in TYPES_CODE:
+            flash("Indiquez le nom et le type de la nouvelle activité.", "warning")
+            return redirect(retour)
+        cible = Activite.query.filter_by(type=type_, nom=nom).first() or Activite(type=type_, nom=nom)
+        db.session.add(cible)
+        message = f"rattaché(s) à la nouvelle activité « {nom} » ({type_})"
+    elif action == "retirer":
+        for code in choisis:
+            element(code).activite = None
+        db.session.commit()
+        flash(f"{len(choisis)} code(s) retiré(s) de leur activité.", "success")
+        return redirect(retour)
+    elif action == "type":
+        type_ = champ("nouveau_type")
+        if type_ not in TYPES_CODE:
+            flash("Choisissez un type.", "warning")
+            return redirect(retour)
+        for code in choisis:
+            e = element(code)
+            if e.activite and e.activite.type != type_:
+                e.activite = None
+            e.type = type_
+        db.session.commit()
+        flash(f"{len(choisis)} code(s) classé(s) en « {type_} ».", "success")
+        return redirect(retour)
+    else:
+        return redirect(retour)
+    for code in choisis:  # rattachement : le code prend le type de l'activité
+        e = element(code)
+        e.activite, e.type = cible, cible.type
+    db.session.commit()
+    flash(f"{len(choisis)} code(s) {message}.", "success")
+    return redirect(retour)
+
+
+@bp.post("/activites/<int:activite_id>")
+def modifier_activite(activite_id):
+    a = db.get_or_404(Activite, activite_id)
+    if request.form.get("supprimer"):
+        for e in a.codes:
+            e.activite = None
+        db.session.delete(a)
+        db.session.commit()
+        flash(f"Activité « {a.nom} » supprimée (ses codes restent dans le référentiel).", "success")
+    elif champ("nom"):
+        a.nom, a.description = champ("nom"), champ("description")
+        enregistrer("Activité renommée.", f"Une activité « {a.nom} » existe déjà pour ce type.")
+    return redirect(url_for("rh.codes", type=a.type))
 
 
 # --- Compétences ------------------------------------------------------------------------

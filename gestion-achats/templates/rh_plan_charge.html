@@ -2,77 +2,131 @@
 {% import "_macros.html" as macros %}
 {% block titre %}Plan de charge {{ annee }}{% endblock %}
 {% block contenu %}
-<h3>Plan de charge {{ annee }}</h3>
-<p class="small text-muted">Part du temps prévue pour chaque personne par centre de coût (élément récepteur), en ETP
-  (1 = une personne à temps plein sur l'année ; 0,5 = la moitié de son temps). Le total d'une ligne se compare à la quotité.
-  Sous chaque case, en petit : le <strong>réalisé</strong> issu des <a href="{{ url_for('rh.temps_realises') }}">temps importés</a>.</p>
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h3 class="mb-0">Plan de charge {{ annee }}</h3>
+  <div class="d-flex gap-2">
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="tout-deplier">Tout déplier</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="tout-replier">Tout replier</button>
+  </div>
+</div>
+<p class="small text-muted">Part du temps prévue, en ETP (1 = temps plein sur l'année), par centre de coût, regroupée par type
+  puis par activité (<a href="{{ url_for('rh.codes') }}">codes et activités</a>). Cliquez sur une activité pour la déplier
+  et saisir le détail par code. Sous chaque valeur, en petit : le <strong>réalisé</strong>
+  (<a href="{{ url_for('rh.temps_realises') }}">temps importés</a>).</p>
 
 {% if not agents %}
   <p class="text-muted">Aucune personne dans l'équipe : <a href="{{ url_for('rh.form_agent') }}">ajoutez des fiches</a>.</p>
 {% else %}
+{% macro cellule_realise(v) %}{% if v %}<div class="realise" title="Réalisé (temps importés)">réal. {{ v|round(2)|etp }}</div>{% endif %}{% endmacro %}
 <form method="post" id="form-charge">
-  {% for p in projets %}<input type="hidden" name="projet" value="{{ p }}">{% endfor %}
-  <div class="table-responsive"><table class="table table-sm table-hover align-middle grille-charge">
+  {% for c in ordre %}<input type="hidden" name="projet" value="{{ c }}">{% endfor %}
+  <div class="table-responsive"><table class="table table-sm align-middle plan-charge">
     <thead><tr>
-      <th>Personne</th><th class="num">Quotité</th>
-      {% for p in projets %}<th class="num">{{ p }}</th>{% endfor %}
-      <th class="num">
-        <input name="nouveau_projet" class="form-control form-control-sm" style="width: 9rem" list="liste-projets"
-               placeholder="+ centre de coût" title="Ajouter une colonne : saisissez le code puis les ETP">
-        <datalist id="liste-projets">{% for p in projets_connus if p not in projets %}<option value="{{ p }}">{% endfor %}</datalist>
-      </th>
-      <th class="num">Total</th><th class="num">Écart</th><th class="num">Réalisé</th>
+      <th class="col-libelle">Type / activité / code</th>
+      {% for a in agents %}<th class="vertical num" title="{{ a.nom_complet }} – quotité {{ a.etp|etp }}">{{ a.prenom[0] ~ '. ' if a.prenom }}{{ a.nom }}</th>{% endfor %}
+      <th class="num">Total</th>
     </tr></thead>
     <tbody>
-    {% for a in agents %}
-      <tr data-quotite="{{ a.etp }}">
-        <td><a href="{{ url_for('rh.fiche_agent', agent_id=a.id) }}">{{ a.nom_complet }}</a></td>
-        <td class="num">{{ a.etp|etp }}</td>
-        {% for p in projets %}
-          <td class="num"><input name="etp_{{ a.id }}_{{ loop.index0 }}" class="form-control form-control-sm d-inline-block case-etp"
-                 inputmode="decimal" value="{{ grille.get((a.id, p))|etp }}">
-            {% if realise.get((a.id, p)) %}<div class="small text-muted" title="Réalisé (temps importés)">réal. {{ realise[(a.id, p)]|round(2)|etp }}</div>{% endif %}</td>
+    {% for type_, activites in groupes %}
+      <tr class="ligne-type"><td>{{ type_ }}</td>
+        {% for a in agents %}<td class="num"><span data-somme="t{{ loop.index0 }}|{{ type_ }}"></span>{{ cellule_realise(sous_totaux_realise.get((a.id, type_))) }}</td>{% endfor %}
+        <td class="num"><span data-somme-ligne="t|{{ type_ }}"></span></td></tr>
+      {% for activite, codes in activites %}{% set groupe = type_ ~ '¦' ~ activite %}
+        <tr class="ligne-activite" data-groupe="{{ groupe }}" title="Cliquer pour déplier / replier">
+          <td><span class="chevron">▸</span> {{ activite }} <span class="text-muted small">({{ codes|length }})</span></td>
+          {% for a in agents %}<td class="num"><span data-somme="a{{ loop.index0 }}|{{ groupe }}"></span>{{ cellule_realise(sous_totaux_realise.get((a.id, type_, activite))) }}</td>{% endfor %}
+          <td class="num"><span data-somme-ligne="a|{{ groupe }}"></span></td></tr>
+        {% for code in codes %}
+          <tr class="ligne-code" data-groupe="{{ groupe }}" data-type="{{ type_ }}" hidden>
+            <td class="ps-4 text-nowrap" title="{{ designations.get(code, '') }}">{{ code }}
+              {% if designations.get(code) %}<div class="small text-muted text-truncate" style="max-width: 18rem">{{ designations[code] }}</div>{% endif %}</td>
+            {% for a in agents %}
+              <td class="num"><input name="etp_{{ a.id }}_{{ index[code] }}" class="form-control form-control-sm case-etp" data-col="{{ loop.index0 }}"
+                     inputmode="decimal" value="{{ grille.get((a.id, code))|etp }}">{{ cellule_realise(realise.get((a.id, code))) }}</td>
+            {% endfor %}
+            <td class="num total-code"></td></tr>
         {% endfor %}
-        <td class="num"><input name="etp_{{ a.id }}_nouveau" class="form-control form-control-sm d-inline-block case-etp" inputmode="decimal"></td>
-        <td class="num fw-bold total-ligne"></td><td class="num ecart-ligne"></td>
-        <td class="num text-muted">{{ realise_agent.get(a.id, 0)|round(2)|etp if realise_agent.get(a.id) }}</td>
-      </tr>
+      {% endfor %}
     {% endfor %}
+      <tr class="ligne-ajout"><td>
+          <input name="nouveau_projet" class="form-control form-control-sm" list="liste-codes" placeholder="+ ajouter un code"
+                 title="Saisissez un code puis les ETP de chaque personne">
+          <datalist id="liste-codes">{% for c in codes_connus if c not in index %}<option value="{{ c }}">{% endfor %}</datalist></td>
+        {% for a in agents %}<td class="num"><input name="etp_{{ a.id }}_nouveau" class="form-control form-control-sm case-etp" data-col="{{ loop.index0 }}" inputmode="decimal"></td>{% endfor %}
+        <td></td></tr>
     </tbody>
-    <tfoot class="fw-bold"><tr>
-      <td>Total</td><td class="num">{{ agents|sum(attribute='etp')|etp }}</td>
-      {% for p in projets %}<td class="num total-colonne" data-colonne="{{ loop.index0 }}"></td>{% endfor %}
-      <td class="num total-colonne" data-colonne="nouveau"></td><td class="num" id="total-general"></td><td></td>
-      <td class="num text-muted">{{ realise_agent.values()|sum|round(2)|etp if realise_agent }}</td>
-    </tr></tfoot>
+    <tfoot>
+      <tr class="fw-bold"><td>Total prévu</td>{% for a in agents %}<td class="num" data-total-col="{{ loop.index0 }}"></td>{% endfor %}<td class="num" id="total-general"></td></tr>
+      <tr><td class="text-muted">Quotité</td>{% for a in agents %}<td class="num text-muted" data-quotite="{{ loop.index0 }}" data-valeur="{{ a.etp }}">{{ a.etp|etp }}</td>{% endfor %}<td class="num text-muted">{{ agents|sum(attribute='etp')|etp }}</td></tr>
+      <tr><td class="text-muted">Écart</td>{% for a in agents %}<td class="num" data-ecart-col="{{ loop.index0 }}"></td>{% endfor %}<td></td></tr>
+      <tr><td class="text-muted">Réalisé</td>{% for a in agents %}<td class="num text-muted">{{ realise_agent.get(a.id)|round(2)|etp if realise_agent.get(a.id) }}</td>{% endfor %}
+        <td class="num text-muted">{{ realise_agent.values()|sum|round(2)|etp if realise_agent }}</td></tr>
+    </tfoot>
   </table></div>
-  <div class="d-flex gap-2 mt-3 align-items-center">
+  <div class="d-flex gap-2 mt-3 align-items-center barre-actions">
     <button class="btn btn-primary">Enregistrer le plan de charge {{ annee }}</button>
     <span class="small text-muted">Une case vidée supprime l'affectation. Autre année : changez l'année dans le filtre.</span>
   </div>
 </form>
 <script>
-  // Totaux par personne (comparés à la quotité) et par projet, recalculés à la saisie
   const lire = (v) => parseFloat((v || "").replace(",", ".")) || 0;
-  const fmt = (v) => (Math.round(v * 100) / 100).toLocaleString("fr-FR");
+  const fmt = (v) => (Math.abs(v) < 0.005 ? "" : (Math.round(v * 100) / 100).toLocaleString("fr-FR"));
+
+  // Sous-totaux par activité et par type, totaux par personne et par code, écart à la quotité
   const recalculer = () => {
-    let general = 0;
-    document.querySelectorAll("#form-charge tbody tr").forEach((tr) => {
-      const total = Array.from(tr.querySelectorAll(".case-etp")).reduce((s, i) => s + lire(i.value), 0);
-      const ecart = total - parseFloat(tr.dataset.quotite);
-      general += total;
-      tr.querySelector(".total-ligne").textContent = fmt(total);
-      const cellule = tr.querySelector(".ecart-ligne");
-      cellule.textContent = Math.abs(ecart) < 0.005 ? "" : (ecart > 0 ? "+" : "") + fmt(ecart);
-      cellule.className = "num ecart-ligne " + (ecart > 0.05 ? "surcharge" : ecart < -0.1 ? "sous-charge" : "");
+    const sommes = {}, colonnes = {};
+    document.querySelectorAll("#form-charge tr.ligne-code, #form-charge tr.ligne-ajout").forEach((tr) => {
+      let totalCode = 0;
+      tr.querySelectorAll(".case-etp").forEach((i) => {
+        const v = lire(i.value), col = i.dataset.col;
+        totalCode += v;
+        colonnes[col] = (colonnes[col] || 0) + v;
+        if (tr.dataset.groupe) {
+          for (const cle of [`a${col}|${tr.dataset.groupe}`, `t${col}|${tr.dataset.type}`,
+                             `a|${tr.dataset.groupe}`, `t|${tr.dataset.type}`]) sommes[cle] = (sommes[cle] || 0) + v;
+        }
+      });
+      const cellule = tr.querySelector(".total-code");
+      if (cellule) cellule.textContent = fmt(totalCode);
     });
-    document.querySelectorAll(".total-colonne").forEach((td) => {
-      const somme = Array.from(document.querySelectorAll(`input[name$="_${td.dataset.colonne}"]`))
-        .reduce((s, i) => s + lire(i.value), 0);
-      td.textContent = somme ? fmt(somme) : "";
+    document.querySelectorAll("[data-somme]").forEach((s) => (s.textContent = fmt(sommes[s.dataset.somme] || 0)));
+    document.querySelectorAll("[data-somme-ligne]").forEach((s) => (s.textContent = fmt(sommes[s.dataset.sommeLigne] || 0)));
+    let general = 0;
+    document.querySelectorAll("[data-total-col]").forEach((td) => {
+      const col = td.dataset.totalCol, total = colonnes[col] || 0;
+      general += total;
+      td.textContent = fmt(total) || "0";
+      const ecart = total - parseFloat(document.querySelector(`[data-quotite="${col}"]`).dataset.valeur);
+      const e = document.querySelector(`[data-ecart-col="${col}"]`);
+      e.textContent = Math.abs(ecart) < 0.005 ? "" : (ecart > 0 ? "+" : "") + fmt(ecart);
+      e.className = "num " + (ecart > 0.05 ? "surcharge" : ecart < -0.1 ? "sous-charge" : "");
     });
     document.getElementById("total-general").textContent = fmt(general);
   };
+
+  // Dépliage des activités ; une activité contenant une saisie modifiée reste dépliée
+  const basculer = (groupe, ouvrir) => {
+    const entete = document.querySelector(`tr.ligne-activite[data-groupe="${CSS.escape(groupe)}"]`);
+    document.querySelectorAll(`tr.ligne-code[data-groupe="${CSS.escape(groupe)}"]`).forEach((tr) => (tr.hidden = !ouvrir));
+    entete.classList.toggle("ouverte", ouvrir);
+  };
+  document.querySelectorAll("tr.ligne-activite").forEach((tr) =>
+    tr.addEventListener("click", () => basculer(tr.dataset.groupe, !tr.classList.contains("ouverte"))));
+  document.getElementById("tout-deplier").addEventListener("click", () =>
+    document.querySelectorAll("tr.ligne-activite").forEach((tr) => basculer(tr.dataset.groupe, true)));
+  document.getElementById("tout-replier").addEventListener("click", () =>
+    document.querySelectorAll("tr.ligne-activite").forEach((tr) => basculer(tr.dataset.groupe, false)));
+  // Activités dépliées gardées d'un affichage à l'autre (préférence locale du navigateur)
+  const memoire = "plan-charge-deplies";
+  let deplies = [];
+  try { deplies = JSON.parse(localStorage.getItem(memoire) || "[]"); } catch (e) {}
+  deplies.forEach((g) => document.querySelector(`tr.ligne-activite[data-groupe="${CSS.escape(g)}"]`) && basculer(g, true));
+  window.addEventListener("beforeunload", () => {
+    try {
+      localStorage.setItem(memoire, JSON.stringify(Array.from(document.querySelectorAll("tr.ligne-activite.ouverte")).map((tr) => tr.dataset.groupe)));
+    } catch (e) {}
+  });
+
   document.querySelectorAll(".case-etp").forEach((i) => i.addEventListener("input", recalculer));
   recalculer();
 </script>
