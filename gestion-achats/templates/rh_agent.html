@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros %}
+{% block titre %}{{ agent.nom_complet }}{% endblock %}
+{% block contenu %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <a href="{{ url_for('rh.equipe') }}" class="small">← Équipe</a>
+    <h3 class="mb-0">{{ agent.nom_complet }}
+      {% if not agent.actif %}<span class="badge bg-secondary fs-6 align-middle">parti le {{ agent.date_depart|date_fr }}</span>{% endif %}</h3>
+    <div class="text-muted">{{ [agent.fonction, agent.statut, 'quotité ' ~ (agent.etp|etp) ~ ' ETP']|select|join(' · ') }}
+      {% if agent.date_arrivee %} · arrivé(e) le {{ agent.date_arrivee|date_fr }}{% endif %}
+      {% if agent.email %} · <a href="mailto:{{ agent.email }}">{{ agent.email }}</a>{% endif %}</div>
+    {% if agent.commentaire %}<p class="mt-2 mb-0">{{ agent.commentaire }}</p>{% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('rh.form_agent', agent_id=agent.id) }}">Modifier</a>
+    <form method="post" action="{{ url_for('rh.supprimer_agent', agent_id=agent.id) }}"
+          data-confirmer="Supprimer la fiche de {{ agent.nom_complet }} et tout son historique (compétences, affectations, formations) ? Pour un départ, renseignez plutôt la date de départ.">
+      <button class="btn btn-outline-danger">Supprimer</button></form>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Plan de charge -->
+  <div class="col-xl-6" id="charge">
+    <h5>Plan de charge <small class="text-muted fs-6">{{ annee }} : {{ macros.charge(agent, annee, ecart) }} ETP</small></h5>
+    <div class="table-responsive"><table class="table table-sm align-middle">
+      <thead><tr><th>Année</th><th>Projet / activité</th><th class="num">ETP</th><th></th></tr></thead>
+      <tbody>
+      {% for a in agent.affectations %}
+        <tr class="{{ 'table-active' if a.annee == annee }}">
+          <td>{{ a.annee }}</td><td>{{ a.projet }}</td><td class="num">{{ a.etp|etp }}</td>
+          <td class="actions">{{ macros.bouton_supprimer(url_for('rh.supprimer_affectation', affectation_id=a.id), 'Retirer cette affectation ?') }}</td>
+        </tr>
+      {% else %}<tr><td colspan="4" class="text-muted">Aucune affectation.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+    <form method="post" action="{{ url_for('rh.ajouter_affectation', agent_id=agent.id) }}" class="d-flex flex-wrap gap-2 align-items-end mt-2">
+      <div><label class="form-label small mb-0">Année</label>
+        <select name="annee" class="form-select form-select-sm">{% for a in annees %}<option {{ 'selected' if a == annee }}>{{ a }}</option>{% endfor %}</select></div>
+      <div class="flex-grow-1"><label class="form-label small mb-0">Projet / activité</label>
+        <input name="projet" class="form-control form-control-sm" list="liste-projets" required>
+        <datalist id="liste-projets">{% for p in projets %}<option value="{{ p }}">{% endfor %}</datalist></div>
+      <div><label class="form-label small mb-0">ETP</label>
+        <input name="etp" class="form-control form-control-sm" inputmode="decimal" placeholder="0,5" style="width: 5rem" required></div>
+      <button class="btn btn-sm btn-outline-primary">Ajouter / mettre à jour</button>
+    </form>
+    <div class="form-text">Saisie de toute l'équipe d'un coup : <a href="{{ url_for('rh.plan_charge') }}">plan de charge</a>.</div>
+  </div>
+
+  <!-- Points forts / axes de progrès -->
+  <div class="col-xl-6" id="appreciations">
+    <h5>Points forts et axes de progrès</h5>
+    <div class="row g-3">
+      {% for cle, titre in types.items() %}
+      <div class="col-md-6">
+        <h6 class="text-muted">{{ titre }}s</h6>
+        <ul class="list-unstyled small mb-0">
+          {% for ap in agent.appreciations if ap.type == cle %}
+            <li class="d-flex justify-content-between gap-2 py-1 border-bottom">
+              <span>{{ ap.texte }} <span class="text-muted">· {{ ap.date|date_fr }}</span></span>
+              <form method="post" action="{{ url_for('rh.supprimer_appreciation', appreciation_id=ap.id) }}" data-confirmer="Supprimer cette ligne ?">
+                <button class="btn btn-sm btn-link text-muted p-0" title="Supprimer">✕</button></form>
+            </li>
+          {% else %}<li class="text-muted">—</li>{% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
+    </div>
+    <form method="post" action="{{ url_for('rh.ajouter_appreciation', agent_id=agent.id) }}" class="d-flex flex-wrap gap-2 align-items-end mt-3">
+      <div><select name="type" class="form-select form-select-sm">{% for cle, titre in types.items() %}<option value="{{ cle }}">{{ titre }}</option>{% endfor %}</select></div>
+      <div class="flex-grow-1"><input name="texte" class="form-control form-control-sm" placeholder="ex. rigueur des analyses, prise de parole en réunion…" required></div>
+      <div><input name="date" type="date" class="form-control form-control-sm" value="{{ aujourdhui.isoformat() }}"></div>
+      <button class="btn btn-sm btn-outline-primary">Ajouter</button>
+    </form>
+  </div>
+
+  <!-- Compétences -->
+  <div class="col-xl-6" id="competences">
+    <h5>Compétences</h5>
+    {% if competences %}
+    <form method="post" action="{{ url_for('rh.enregistrer_competences', agent_id=agent.id) }}">
+      <div class="table-responsive"><table class="table table-sm align-middle">
+        <thead><tr><th>Compétence</th><th>Domaine</th><th>Niveau</th><th></th></tr></thead>
+        <tbody>
+        {% for c in competences %}{% set n = agent.niveau(c.id) %}
+          <tr class="{{ 'text-muted' if not n }}">
+            <td>{{ c.nom }}</td><td class="small text-muted">{{ c.domaine or '' }}</td>
+            <td><select name="niveau_{{ c.id }}" class="form-select form-select-sm" style="width: 9rem">
+              <option value="0">—</option>
+              {% for v, libelle in niveaux.items() %}<option value="{{ v }}" {{ 'selected' if n == v }}>{{ v }} – {{ libelle }}</option>{% endfor %}
+            </select></td>
+            <td>{{ macros.niveau(n, niveaux) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      <button class="btn btn-sm btn-primary mt-2">Enregistrer les niveaux</button>
+      <a class="small ms-2" href="{{ url_for('rh.competences') }}">Gérer le référentiel de compétences</a>
+    </form>
+    {% else %}
+      <p class="text-muted">Le référentiel est vide : <a href="{{ url_for('rh.competences') }}">ajoutez des compétences</a>.</p>
+    {% endif %}
+  </div>
+
+  <!-- Formations -->
+  <div class="col-xl-6" id="formations">
+    <div class="d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Formations</h5>
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('rh.form_formation', agent=agent.id, retour=url_for('rh.fiche_agent', agent_id=agent.id) ~ '#formations') }}">+ Formation</a>
+    </div>
+    <div class="table-responsive mt-2"><table class="table table-sm align-middle">
+      <thead><tr><th>Date</th><th>Intitulé</th><th>Compétence</th><th class="num">Jours</th><th>Statut</th></tr></thead>
+      <tbody>
+      {% for f in agent.formations %}
+        <tr class="{{ 'text-muted' if f.statut == 'annulée' }}">
+          <td>{{ f.date_debut|date_fr }}</td>
+          <td><a href="{{ url_for('rh.form_formation', formation_id=f.id, retour=url_for('rh.fiche_agent', agent_id=agent.id) ~ '#formations') }}">{{ f.intitule }}</a>
+            {% if f.organisme %}<span class="text-muted small">· {{ f.organisme }}</span>{% endif %}</td>
+          <td class="small">{{ f.competence.nom if f.competence }}</td>
+          <td class="num">{{ f.duree_jours|etp }}</td>
+          <td><span class="badge {{ 'bg-success' if f.statut == 'réalisée' else ('bg-secondary' if f.statut == 'annulée' else 'bg-info text-dark') }}">{{ f.statut }}</span></td>
+        </tr>
+      {% else %}<tr><td colspan="5" class="text-muted">Aucune formation.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+</div>
+{% endblock %}

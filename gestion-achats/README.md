@@ -1,4 +1,4 @@
-# Gestion des achats – DA / Commandes
+# Pilotage – budgets et équipe
 
 Application web **locale** pour remplacer le suivi Excel des Demandes d'Achat et des Commandes.
 Elle ne nécessite aucun serveur et aucune donnée ne quitte le PC.
@@ -41,6 +41,26 @@ puis « Activer la protection » (Windows demande le code PIN une fois, pour vé
 - Les exports Excel ne sont pas chiffrés.
 - Restaurer une sauvegarde : application arrêtée, copier `sauvegardes/achats_AAAAMMJJ.db.chiffre` sur
   `donnees/achats.db.chiffre` (même clé).
+
+## Organisation
+
+Une barre latérale donne accès à deux espaces :
+
+- **Gestion budgétaire** : tableau de bord, budgets, demandes d'achat, bons de commande, marchés, import / export Excel
+  (détaillés plus bas).
+- **Gestion RH** :
+  - **Équipe** : fiches des personnes (fonction, statut, quotité en ETP, dates d'arrivée et de départ), vue d'ensemble
+    (effectif, capacité, charge planifiée, écarts de charge, compétences à risque, formations à venir).
+  - **Fiche d'une personne** : plan de charge par année, points forts et axes de progrès (datés), niveaux de
+    compétence (1 Notions → 4 Expert), formations.
+  - **Plan de charge** : grille personnes × projets / activités de l'année, en fractions d'ETP, totaux et écarts
+    à la quotité recalculés à la saisie (surcharge, sous-charge).
+  - **Compétences** : référentiel et matrice de l'équipe ; une compétence maîtrisée (niveau ≥ 3) par moins de
+    2 personnes est signalée « à risque ».
+  - **Formations** : prévues, réalisées ou annulées, rattachables à une compétence.
+
+Les données RH sont dans la même base que les budgets : elles sont donc chiffrées si la protection par carte
+est activée. Elles ne figurent pas dans l'export Excel.
 
 ## Fonctionnalités
 
@@ -89,6 +109,8 @@ dans `donnees/sauvegardes/`.
 | `models.py` | Modèle de données (DA, postes DA, BdC, postes BdC) |
 | `regles.py` | Règles de couleur des lignes |
 | `protection.py` | Chiffrement de la base, clé protégée par la carte à puce, verrouillage |
+| `rh.py` | Gestion RH : équipe, compétences, plan de charge, formations |
+| `formulaires.py` | Lecture des formulaires, filtre année / projet (communs) |
 | `budgets.py` | Calcul des situations budgétaires (budget, DA, BdC, disponible, alertes) |
 | `mail.py` | E-mail de demande de commande au service achat |
 | `excel_io.py` | Import / export Excel, en-têtes de colonnes reconnus |

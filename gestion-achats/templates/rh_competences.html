@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros %}
+{% block titre %}Compétences{% endblock %}
+{% block contenu %}
+<h3>Compétences de l'équipe</h3>
+<p class="small text-muted">Niveaux : {% for v, l in niveaux.items() %}{{ macros.niveau(v, niveaux) }} {{ v }} – {{ l }}{{ ' · ' if not loop.last }}{% endfor %}.
+  Les niveaux se saisissent dans la fiche de chaque personne.
+  <span class="surcharge">⚠</span> = compétence maîtrisée (niveau ≥ {{ niveau_maitrise }}) par moins de 2 personnes.</p>
+
+{% if competences and agents %}
+<h5>Matrice</h5>
+<div class="table-responsive mb-4"><table class="table table-sm table-hover align-middle matrice">
+  <thead><tr><th>Personne</th>
+    {% for c in competences %}<th class="vertical {{ 'surcharge' if c.id in a_risque }}" title="{{ c.domaine or '' }}">{{ '⚠ ' if c.id in a_risque }}{{ c.nom }}</th>{% endfor %}
+  </tr></thead>
+  <tbody>
+  {% for a in agents %}
+    <tr><td><a href="{{ url_for('rh.fiche_agent', agent_id=a.id) }}#competences">{{ a.nom_complet }}</a></td>
+      {% for c in competences %}<td class="text-center">{{ macros.niveau(a.niveau(c.id), niveaux) }}</td>{% endfor %}</tr>
+  {% endfor %}
+  </tbody>
+  <tfoot><tr><td class="small text-muted">Niveau ≥ {{ niveau_maitrise }}</td>
+    {% for c in competences %}<td class="text-center small">{{ agents|selectattr('id', 'in', c.niveaux|selectattr('niveau', 'ge', niveau_maitrise)|map(attribute='agent_id')|list)|list|length }}</td>{% endfor %}
+  </tr></tfoot>
+</table></div>
+{% endif %}
+
+<h5>Référentiel</h5>
+<div class="table-responsive mb-3"><table class="table table-sm table-hover align-middle" style="max-width: 60rem">
+  <thead><tr><th>Compétence</th><th>Domaine</th><th>Description</th><th class="num">Personnes</th><th></th></tr></thead>
+  <tbody>
+  {% for c in competences %}
+    <tr><td>{{ c.nom }}</td><td class="text-muted">{{ c.domaine or '' }}</td><td class="small">{{ c.description or '' }}</td>
+      <td class="num">{{ c.niveaux|length }}</td>
+      <td class="actions"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('rh.form_competence', competence_id=c.id) }}">Modifier</a>
+        {{ macros.bouton_supprimer(url_for('rh.supprimer_competence', competence_id=c.id), 'Supprimer la compétence « ' ~ c.nom ~ ' » ? Les niveaux saisis pour cette compétence seront perdus.') }}</td></tr>
+  {% else %}<tr><td colspan="5" class="text-muted">Aucune compétence.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+<form method="post" class="card card-body" style="max-width: 60rem">
+  <h6>Ajouter une compétence</h6>
+  <div class="row g-2 align-items-end">
+    <div class="col-md-4"><input name="nom" class="form-control form-control-sm" placeholder="ex. Orbitographie" required></div>
+    <div class="col-md-3"><input name="domaine" class="form-control form-control-sm" list="liste-domaines" placeholder="Domaine (ex. Technique)">
+      <datalist id="liste-domaines">{% for d in domaines %}<option value="{{ d }}">{% endfor %}</datalist></div>
+    <div class="col-md-3"><input name="description" class="form-control form-control-sm" placeholder="Description (facultatif)"></div>
+    <div class="col-md-2"><button class="btn btn-sm btn-primary w-100">Ajouter</button></div>
+  </div>
+</form>
+{% endblock %}

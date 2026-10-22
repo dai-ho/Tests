@@ -3,60 +3,78 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block titre %}Achats{% endblock %} – Budgets DA / BdC</title>
+  <title>{% block titre %}Pilotage{% endblock %} – Pilotage budgets &amp; équipe</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
 </head>
 <body>
 {% set page = request.endpoint %}
-<nav class="navbar navbar-expand barre-principale {{ 'mb-4' if not filtre_actif }}">
-  <div class="container-fluid">
-    <a class="navbar-brand" href="{{ url_for('accueil') }}">Budgets DA / BdC</a>
-    <ul class="navbar-nav me-auto">
-      <li class="nav-item"><a class="nav-link {% if page in ['liste_da','detail_da','form_da','form_poste_da'] %}active{% endif %}" href="{{ url_for('liste_da') }}">DA</a></li>
-      <li class="nav-item"><a class="nav-link {% if page == 'postes_da' %}active{% endif %}" href="{{ url_for('postes_da') }}">Suivi DA</a></li>
-      <li class="nav-item"><a class="nav-link {% if page in ['liste_commandes','detail_commande','form_commande','nouvelle_commande','mail_commande','form_poste_commande'] %}active{% endif %}" href="{{ url_for('liste_commandes') }}">BdC</a></li>
-      <li class="nav-item"><a class="nav-link {% if page == 'postes_commande' %}active{% endif %}" href="{{ url_for('postes_commande') }}">Suivi BdC</a></li>
-      <li class="nav-item"><a class="nav-link {% if page in ['liste_marches','detail_marche','form_marche'] %}active{% endif %}" href="{{ url_for('liste_marches') }}">Marchés</a></li>
-      <li class="nav-item"><a class="nav-link {% if page in ['liste_budgets','detail_ligne_budget','form_ligne_budget'] %}active{% endif %}" href="{{ url_for('liste_budgets') }}">Budgets</a></li>
-    </ul>
-    <ul class="navbar-nav">
-      <li class="nav-item"><a class="nav-link {% if page == 'import_excel' %}active{% endif %}" href="{{ url_for('import_excel') }}">Importer Excel</a></li>
-      <li class="nav-item"><a class="nav-link" href="{{ url_for('export_excel') }}">Exporter Excel</a></li>
-      <li class="nav-item"><a class="nav-link {% if page == 'parametres' %}active{% endif %}" href="{{ url_for('parametres') }}" title="E-mail, protection par carte, arrêt de l'application">⚙ Paramètres</a></li>
+{% macro lien(endpoint, libelle, icone, actifs=[]) %}
+  <a class="lien-lateral {{ 'actif' if page == endpoint or page in actifs }}" href="{{ url_for(endpoint) }}">
+    <span class="icone" aria-hidden="true">{{ icone }}</span>{{ libelle }}</a>
+{% endmacro %}
+<div class="mise-en-page">
+  <aside class="barre-laterale">
+    <a class="marque" href="{{ url_for('accueil') }}">Pilotage<small>Budgets · Équipe</small></a>
+    {% if not (base_protegee and page in ['verrou', 'deverrouiller']) %}
+    <nav>
+      <div class="rubrique">Gestion budgétaire</div>
+      {{ lien('accueil', 'Tableau de bord', '◧') }}
+      {{ lien('liste_budgets', 'Budgets', '€', ['detail_ligne_budget', 'form_ligne_budget']) }}
+      {{ lien('liste_da', "Demandes d'achat", '▤', ['detail_da', 'form_da', 'form_poste_da']) }}
+      {{ lien('postes_da', 'Suivi DA', '☰') }}
+      {{ lien('liste_commandes', 'Bons de commande', '▦', ['detail_commande', 'form_commande', 'nouvelle_commande', 'mail_commande', 'form_poste_commande']) }}
+      {{ lien('postes_commande', 'Suivi BdC', '☰') }}
+      {{ lien('liste_marches', 'Marchés', '◈', ['detail_marche', 'form_marche']) }}
+      {{ lien('import_excel', 'Importer Excel', '⇪') }}
+      <a class="lien-lateral" href="{{ url_for('export_excel') }}"><span class="icone" aria-hidden="true">⇩</span>Exporter Excel</a>
+
+      <div class="rubrique">Gestion RH</div>
+      {{ lien('rh.equipe', 'Équipe', '◉', ['rh.fiche_agent', 'rh.form_agent']) }}
+      {{ lien('rh.plan_charge', 'Plan de charge', '▥') }}
+      {{ lien('rh.competences', 'Compétences', '✦', ['rh.form_competence']) }}
+      {{ lien('rh.formations', 'Formations', '✎', ['rh.form_formation']) }}
+    </nav>
+    {% endif %}
+    <div class="pied-lateral">
+      {{ lien('parametres', 'Paramètres', '⚙') }}
       {% if base_protegee and page not in ['verrou', 'deverrouiller'] %}
-      <li class="nav-item"><form method="post" action="{{ url_for('verrouiller') }}" class="d-inline">
-        <button class="nav-link btn btn-link" title="Verrouiller la base (le retrait de la carte la verrouille aussi)">🔒 Verrouiller</button></form></li>
+      <form method="post" action="{{ url_for('verrouiller') }}">
+        <button class="lien-lateral" title="Verrouiller la base (le retrait de la carte la verrouille aussi)">
+          <span class="icone" aria-hidden="true">🔒</span>Verrouiller</button></form>
       {% endif %}
-    </ul>
+    </div>
+  </aside>
+
+  <div class="zone-principale">
+    {% if filtre_actif %}
+    <form action="{{ url_for('filtrer') }}" class="bandeau-filtre d-flex flex-wrap align-items-center gap-3 px-4 py-2">
+      <input type="hidden" name="retour" value="{{ request.full_path }}">
+      <strong class="small text-muted">Filtre</strong>
+      <label class="d-flex align-items-center gap-2 small">Année
+        <select name="annee" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="" {{ 'selected' if filtre_annee is none }}>Toutes</option>
+          {% for a in filtre_annees %}<option value="{{ a }}" {{ 'selected' if filtre_annee == a }}>{{ a }}</option>{% endfor %}
+        </select></label>
+      <label class="d-flex align-items-center gap-2 small">Projet
+        <select name="projet" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="" {{ 'selected' if not filtre_projet }}>Tous</option>
+          {% for p in filtre_projets %}<option {{ 'selected' if filtre_projet == p }}>{{ p }}</option>{% endfor %}
+        </select></label>
+      {% if filtre_annee != aujourdhui.year or filtre_projet %}
+        <a class="small" href="{{ url_for('filtrer', annee=aujourdhui.year, retour=request.full_path) }}">Réinitialiser ({{ aujourdhui.year }}, tous projets)</a>
+      {% endif %}
+      <noscript><button class="btn btn-sm btn-outline-primary">Appliquer</button></noscript>
+    </form>
+    {% endif %}
+    <main class="container-fluid px-4 py-4">
+      {% for categorie, message in get_flashed_messages(with_categories=true) %}
+        <div class="alert alert-{{ categorie }}">{{ message }}</div>
+      {% endfor %}
+      {% block contenu %}{% endblock %}
+    </main>
   </div>
-</nav>
-{% if filtre_actif %}
-<form action="{{ url_for('filtrer') }}" class="bandeau-filtre d-flex flex-wrap align-items-center gap-3 px-4 py-2 mb-3">
-  <input type="hidden" name="retour" value="{{ request.full_path }}">
-  <strong class="small text-muted">Filtre</strong>
-  <label class="d-flex align-items-center gap-2 small">Année
-    <select name="annee" class="form-select form-select-sm" onchange="this.form.submit()">
-      <option value="" {{ 'selected' if filtre_annee is none }}>Toutes</option>
-      {% for a in filtre_annees %}<option value="{{ a }}" {{ 'selected' if filtre_annee == a }}>{{ a }}</option>{% endfor %}
-    </select></label>
-  <label class="d-flex align-items-center gap-2 small">Projet
-    <select name="projet" class="form-select form-select-sm" onchange="this.form.submit()">
-      <option value="" {{ 'selected' if not filtre_projet }}>Tous</option>
-      {% for p in filtre_projets %}<option {{ 'selected' if filtre_projet == p }}>{{ p }}</option>{% endfor %}
-    </select></label>
-  {% if filtre_annee != aujourdhui.year or filtre_projet %}
-    <a class="small" href="{{ url_for('filtrer', annee=aujourdhui.year, retour=request.full_path) }}">Réinitialiser ({{ aujourdhui.year }}, tous projets)</a>
-  {% endif %}
-  <noscript><button class="btn btn-sm btn-outline-primary">Appliquer</button></noscript>
-</form>
-{% endif %}
-<main class="container-fluid px-4">
-  {% for categorie, message in get_flashed_messages(with_categories=true) %}
-    <div class="alert alert-{{ categorie }}">{{ message }}</div>
-  {% endfor %}
-  {% block contenu %}{% endblock %}
-</main>
+</div>
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

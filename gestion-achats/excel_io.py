@@ -9,7 +9,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from models import (TYPES_BUDGET, BudgetAnnuel, Commande, DemandeAchat, LigneBudgetaire, Marche,
+from models import (BudgetAnnuel, Commande, DemandeAchat, LigneBudgetaire, Marche,
                     PosteCommande, PosteDA, db)
 
 # Colonnes reconnues : clé interne -> en-têtes acceptés (le premier sert à l'export).

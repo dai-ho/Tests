@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros %}
+{% block titre %}Formations{% endblock %}
+{% block contenu %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="mb-0">Formations {{ annee or '' }}</h3>
+  <a class="btn btn-primary" href="{{ url_for('rh.form_formation') }}">+ Nouvelle formation</a>
+</div>
+<div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
+  <a class="btn btn-sm {{ 'btn-primary' if not statut else 'btn-outline-secondary' }}" href="{{ url_for('rh.formations') }}">Toutes</a>
+  {% for s in statuts %}<a class="btn btn-sm {{ 'btn-primary' if statut == s else 'btn-outline-secondary' }}" href="{{ url_for('rh.formations', statut=s) }}">{{ s|capitalize }}s</a>{% endfor %}
+  <span class="small text-muted ms-2">{{ formations|length }} formation(s) · {{ jours|etp or '0' }} jour(s) réalisé(s)</span>
+</div>
+{{ macros.filtre("table-formations", "Filtrer : personne, intitulé, organisme, compétence…") }}
+<div class="table-responsive"><table class="table table-hover align-middle" id="table-formations">
+  <thead><tr><th data-tri>Date</th><th data-tri>Personne</th><th data-tri>Intitulé</th><th data-tri>Organisme</th>
+    <th data-tri>Compétence</th><th data-tri class="num">Jours</th><th data-tri>Statut</th><th></th></tr></thead>
+  <tbody>
+  {% for f in formations %}
+    <tr class="{{ 'text-muted' if f.statut == 'annulée' }}">
+      <td data-valeur="{{ f.date_debut or '' }}">{{ f.date_debut|date_fr }}</td>
+      <td><a href="{{ url_for('rh.fiche_agent', agent_id=f.agent_id) }}#formations">{{ f.agent.nom_complet }}</a></td>
+      <td>{{ f.intitule }}</td><td>{{ f.organisme or '' }}</td><td class="small">{{ f.competence.nom if f.competence }}</td>
+      <td class="num">{{ f.duree_jours|etp }}</td>
+      <td><span class="badge {{ 'bg-success' if f.statut == 'réalisée' else ('bg-secondary' if f.statut == 'annulée' else 'bg-info text-dark') }}">{{ f.statut }}</span></td>
+      <td class="actions"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('rh.form_formation', formation_id=f.id, retour=request.full_path) }}">Modifier</a>
+        <form method="post" action="{{ url_for('rh.supprimer_formation', formation_id=f.id) }}" data-confirmer="Supprimer cette formation ?">
+          <input type="hidden" name="retour" value="{{ request.full_path }}"><button class="btn btn-sm btn-outline-danger">✕</button></form></td>
+    </tr>
+  {% else %}<tr><td colspan="8" class="text-muted">Aucune formation pour ce filtre.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}

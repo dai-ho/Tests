@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros %}
+{% block titre %}Plan de charge {{ annee }}{% endblock %}
+{% block contenu %}
+<h3>Plan de charge {{ annee }}</h3>
+<p class="small text-muted">Part du temps de chaque personne par projet / activité, en ETP (1 = une personne à temps plein sur
+  l'année ; 0,5 = la moitié de son temps). Le total d'une ligne se compare à la quotité de la personne.
+  {% if filtre_projet %}<br>Filtre actif : seul le projet « {{ filtre_projet }} » est affiché et modifié.{% endif %}</p>
+
+{% if not agents %}
+  <p class="text-muted">Aucune personne dans l'équipe : <a href="{{ url_for('rh.form_agent') }}">ajoutez des fiches</a>.</p>
+{% else %}
+<form method="post" id="form-charge">
+  {% for p in projets %}<input type="hidden" name="projet" value="{{ p }}">{% endfor %}
+  <div class="table-responsive"><table class="table table-sm table-hover align-middle grille-charge">
+    <thead><tr>
+      <th>Personne</th><th class="num">Quotité</th>
+      {% for p in projets %}<th class="num">{{ p }}</th>{% endfor %}
+      <th class="num">
+        <input name="nouveau_projet" class="form-control form-control-sm" style="width: 9rem" list="liste-projets"
+               placeholder="+ projet / activité" title="Ajouter une colonne : saisissez le nom puis les ETP">
+        <datalist id="liste-projets">{% for p in projets_connus if p not in projets %}<option value="{{ p }}">{% endfor %}</datalist>
+      </th>
+      <th class="num">Total</th><th class="num">Écart</th>
+    </tr></thead>
+    <tbody>
+    {% for a in agents %}
+      <tr data-quotite="{{ a.etp }}">
+        <td><a href="{{ url_for('rh.fiche_agent', agent_id=a.id) }}">{{ a.nom_complet }}</a></td>
+        <td class="num">{{ a.etp|etp }}</td>
+        {% for p in projets %}
+          <td class="num"><input name="etp_{{ a.id }}_{{ loop.index0 }}" class="form-control form-control-sm d-inline-block case-etp"
+                 inputmode="decimal" value="{{ grille.get((a.id, p))|etp }}"></td>
+        {% endfor %}
+        <td class="num"><input name="etp_{{ a.id }}_nouveau" class="form-control form-control-sm d-inline-block case-etp" inputmode="decimal"></td>
+        <td class="num fw-bold total-ligne"></td><td class="num ecart-ligne"></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+    <tfoot class="fw-bold"><tr>
+      <td>Total</td><td class="num">{{ agents|sum(attribute='etp')|etp }}</td>
+      {% for p in projets %}<td class="num total-colonne" data-colonne="{{ loop.index0 }}"></td>{% endfor %}
+      <td class="num total-colonne" data-colonne="nouveau"></td><td class="num" id="total-general"></td><td></td>
+    </tr></tfoot>
+  </table></div>
+  <div class="d-flex gap-2 mt-3 align-items-center">
+    <button class="btn btn-primary">Enregistrer le plan de charge {{ annee }}</button>
+    <span class="small text-muted">Une case vidée supprime l'affectation. Autre année : changez l'année dans le filtre.</span>
+  </div>
+</form>
+<script>
+  // Totaux par personne (comparés à la quotité) et par projet, recalculés à la saisie
+  const lire = (v) => parseFloat((v || "").replace(",", ".")) || 0;
+  const fmt = (v) => (Math.round(v * 100) / 100).toLocaleString("fr-FR");
+  const recalculer = () => {
+    let general = 0;
+    document.querySelectorAll("#form-charge tbody tr").forEach((tr) => {
+      const total = Array.from(tr.querySelectorAll(".case-etp")).reduce((s, i) => s + lire(i.value), 0);
+      const ecart = total - parseFloat(tr.dataset.quotite);
+      general += total;
+      tr.querySelector(".total-ligne").textContent = fmt(total);
+      const cellule = tr.querySelector(".ecart-ligne");
+      cellule.textContent = Math.abs(ecart) < 0.005 ? "" : (ecart > 0 ? "+" : "") + fmt(ecart);
+      cellule.className = "num ecart-ligne " + (ecart > 0.05 ? "surcharge" : ecart < -0.1 ? "sous-charge" : "");
+    });
+    document.querySelectorAll(".total-colonne").forEach((td) => {
+      const somme = Array.from(document.querySelectorAll(`input[name$="_${td.dataset.colonne}"]`))
+        .reduce((s, i) => s + lire(i.value), 0);
+      td.textContent = somme ? fmt(somme) : "";
+    });
+    document.getElementById("total-general").textContent = fmt(general);
+  };
+  document.querySelectorAll(".case-etp").forEach((i) => i.addEventListener("input", recalculer));
+  recalculer();
+</script>
+{% endif %}
+{% endblock %}

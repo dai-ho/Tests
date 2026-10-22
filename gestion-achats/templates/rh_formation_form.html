@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block titre %}Formation{% endblock %}
+{% block contenu %}
+<a href="{{ retour }}" class="small">← Retour</a>
+<h3>{{ 'Modifier la formation' if formation.id else 'Nouvelle formation' }}</h3>
+<form method="post" class="card card-body" style="max-width: 50rem">
+  <input type="hidden" name="retour" value="{{ retour }}">
+  <div class="row g-3">
+    <div class="col-md-6"><label class="form-label">Personne *</label>
+      <select name="agent_id" class="form-select" required>
+        <option value="">— choisir —</option>
+        {% for a in agents %}<option value="{{ a.id }}" {{ 'selected' if formation.agent_id == a.id }}>{{ a.nom_complet }}{{ '' if a.actif else ' (partie)' }}</option>{% endfor %}
+      </select></div>
+    <div class="col-md-6"><label class="form-label">Statut</label>
+      <select name="statut" class="form-select">{% for s in statuts %}<option {{ 'selected' if formation.statut == s }}>{{ s }}</option>{% endfor %}</select></div>
+    <div class="col-12"><label class="form-label">Intitulé *</label>
+      <input name="intitule" class="form-control" required value="{{ formation.intitule or '' }}"></div>
+    <div class="col-md-6"><label class="form-label">Organisme</label>
+      <input name="organisme" class="form-control" list="liste-organismes" value="{{ formation.organisme or '' }}">
+      <datalist id="liste-organismes">{% for o in organismes %}<option value="{{ o }}">{% endfor %}</datalist></div>
+    <div class="col-md-3"><label class="form-label">Date</label>
+      <input name="date_debut" type="date" class="form-control" value="{{ formation.date_debut or '' }}"></div>
+    <div class="col-md-3"><label class="form-label">Durée (jours)</label>
+      <input name="duree_jours" class="form-control" inputmode="decimal" value="{{ formation.duree_jours|etp }}"></div>
+    <div class="col-md-6"><label class="form-label">Compétence visée</label>
+      <select name="competence_id" class="form-select">
+        <option value="">—</option>
+        {% for c in competences %}<option value="{{ c.id }}" {{ 'selected' if formation.competence_id == c.id }}>{{ c.nom }}</option>{% endfor %}
+      </select></div>
+    <div class="col-12"><label class="form-label">Commentaire</label>
+      <textarea name="commentaire" class="form-control" rows="2">{{ formation.commentaire or '' }}</textarea></div>
+  </div>
+  <div class="d-flex gap-2 mt-4"><button class="btn btn-primary">Enregistrer</button>
+    <a class="btn btn-outline-secondary" href="{{ retour }}">Annuler</a></div>
+</form>
+{% endblock %}

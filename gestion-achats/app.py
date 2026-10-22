@@ -16,24 +16,26 @@ from flask import (Flask, flash, g, redirect, render_template, request, send_fil
                    url_for)
 from jinja2 import Undefined
 from sqlalchemy import event, inspect, text
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import StaticPool
 
 import budgets
 import excel_io
+from formulaires import (champ, champ_date, champ_entier, champ_montant, enregistrer,
+                         filtre_courant, valeurs_distinctes)
 import mail
 import regles
+import rh
 
 try:
     import protection
 except ImportError:  # bibliothèque « cryptography » pas encore installée (relancer lancer.bat)
     protection = None
-from models import (STATUTS_DA, TYPES_BUDGET, BudgetAnnuel, Commande, DemandeAchat,
-                    LigneBudgetaire, Marche, PosteCommande, PosteDA, db)
+from models import (STATUTS_DA, TYPES_BUDGET, Affectation, BudgetAnnuel, Commande,
+                    DemandeAchat, LigneBudgetaire, Marche, PosteCommande, PosteDA, db)
 
 # Pages sur lesquelles s'applique le filtre année / projet
 PAGES_FILTREES = {"accueil", "liste_da", "postes_da", "liste_commandes", "postes_commande",
-                  "liste_budgets"}
+                  "liste_budgets", "rh.equipe", "rh.plan_charge", "rh.formations"}
 
 DOSSIER = os.path.dirname(os.path.abspath(__file__))
 DOSSIER_DONNEES = os.path.join(DOSSIER, "donnees")
@@ -158,7 +160,8 @@ def create_app(db_uri=None, dossier=None):
         return {"filtre_actif": True, "filtre_annee": annee, "filtre_projet": projet,
                 "filtre_annees": sorted(annees, reverse=True),
                 "filtre_projets": sorted(set(valeurs_distinctes(PosteDA.projet))
-                                         | set(valeurs_distinctes(LigneBudgetaire.projet)))}
+                                         | set(valeurs_distinctes(LigneBudgetaire.projet))
+                                         | set(valeurs_distinctes(Affectation.projet)))}
 
     @app.before_request
     def controle_verrou():
@@ -187,6 +190,7 @@ def create_app(db_uri=None, dossier=None):
 
     enregistrer_routes(app)
     enregistrer_routes_protection(app)
+    app.register_blueprint(rh.bp)
     return app
 
 
@@ -304,47 +308,10 @@ def enregistrer_routes_protection(app):
 
 # --- Lecture des formulaires -------------------------------------------------
 
-def champ(nom):
-    v = request.form.get(nom, "").strip()
-    return v or None
-
-
-def champ_entier(nom):
-    v = champ(nom)
-    return int(v) if v else None
-
-
-def champ_montant(nom):
-    v = champ(nom)
-    return float(v.replace(" ", "").replace("€", "").replace(",", ".")) if v else None
-
-
-def champ_date(nom):
-    v = champ(nom)
-    return datetime.strptime(v, "%Y-%m-%d").date() if v else None
-
-
-def enregistrer(message_ok, message_doublon):
-    try:
-        db.session.commit()
-        flash(message_ok, "success")
-        return True
-    except IntegrityError:
-        db.session.rollback()
-        flash(message_doublon, "danger")
-        return False
-
-
 def tous_les_postes_da():
     return (PosteDA.query.join(DemandeAchat)
             .order_by(DemandeAchat.reference.is_(None), DemandeAchat.reference,
                       PosteDA.numero).all())
-
-
-def filtre_courant():
-    """(année, projet) choisis dans le bandeau de filtre : année en cours par défaut,
-    None = toutes les années ; "" = tous les projets."""
-    return session.get("annee", date.today().year), session.get("projet", "")
 
 
 def garder_poste_da(p, annee, projet):
@@ -404,11 +371,6 @@ def alerte_budget(poste_da):
         message = budgets.controle(poste_da.code_imputation, poste_da.annee)
         if message:
             flash(message, "warning")
-
-
-def valeurs_distinctes(colonne):
-    """Valeurs déjà saisies, proposées en suggestion dans les formulaires."""
-    return [v for (v,) in db.session.query(colonne).distinct().order_by(colonne) if v]
 
 
 def situations_annee(annee, projet="", alertes=False):

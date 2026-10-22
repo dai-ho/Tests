@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block titre %}Compétence {{ competence.nom }}{% endblock %}
+{% block contenu %}
+<a href="{{ url_for('rh.competences') }}" class="small">← Compétences</a>
+<h3>Modifier la compétence</h3>
+<form method="post" class="card card-body" style="max-width: 40rem">
+  <div class="mb-3"><label class="form-label">Nom *</label>
+    <input name="nom" class="form-control" required value="{{ competence.nom or '' }}"></div>
+  <div class="mb-3"><label class="form-label">Domaine</label>
+    <input name="domaine" class="form-control" list="liste-domaines" value="{{ competence.domaine or '' }}">
+    <datalist id="liste-domaines">{% for d in domaines %}<option value="{{ d }}">{% endfor %}</datalist></div>
+  <div class="mb-3"><label class="form-label">Description</label>
+    <textarea name="description" class="form-control" rows="2">{{ competence.description or '' }}</textarea></div>
+  <div class="d-flex gap-2"><button class="btn btn-primary">Enregistrer</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('rh.competences') }}">Annuler</a></div>
+</form>
+{% endblock %}

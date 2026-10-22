@@ -1,5 +1,5 @@
-"""Modèle de données : Demandes d'Achat (DA), Bons de Commande (BdC) et leurs postes,
-marchés, paramètres."""
+"""Modèle de données : gestion budgétaire (Demandes d'Achat, Bons de Commande, marchés,
+budgets), gestion RH (équipe, compétences, plan de charge, formations), paramètres."""
 from datetime import date
 
 from flask_sqlalchemy import SQLAlchemy
@@ -255,3 +255,123 @@ class PosteCommande(db.Model):
     def en_retard(self):
         return (not self.csf and self.date_livraison is not None
                 and self.date_livraison < date.today())
+
+
+# --- Gestion RH ----------------------------------------------------------------------
+
+NIVEAUX = {1: "Notions", 2: "Pratique", 3: "Maîtrise", 4: "Expert"}
+STATUTS_AGENT = ["Titulaire", "CDI", "CDD", "Alternant", "Stagiaire", "Prestataire"]
+STATUTS_FORMATION = ["prévue", "réalisée", "annulée"]
+TYPES_APPRECIATION = {"fort": "Point fort", "progres": "Axe de progrès"}
+
+
+class Agent(db.Model):
+    """Membre de l'équipe."""
+    __tablename__ = "agent"
+
+    id = db.Column(db.Integer, primary_key=True)
+    nom = db.Column(db.String(100), nullable=False)
+    prenom = db.Column(db.String(100))
+    fonction = db.Column(db.String(150))
+    statut = db.Column(db.String(50))
+    etp = db.Column(db.Float, nullable=False, default=1.0)   # quotité : 1 = temps plein
+    date_arrivee = db.Column(db.Date)
+    date_depart = db.Column(db.Date)
+    email = db.Column(db.String(150))
+    commentaire = db.Column(db.Text)
+
+    competences = db.relationship("NiveauCompetence", back_populates="agent",
+                                  cascade="all, delete-orphan")
+    appreciations = db.relationship("Appreciation", back_populates="agent",
+                                    cascade="all, delete-orphan",
+                                    order_by="Appreciation.date.desc()")
+    affectations = db.relationship("Affectation", back_populates="agent",
+                                   cascade="all, delete-orphan",
+                                   order_by="(Affectation.annee.desc(), Affectation.projet)")
+    formations = db.relationship("Formation", back_populates="agent",
+                                 cascade="all, delete-orphan",
+                                 order_by="Formation.date_debut.desc()")
+
+    @property
+    def nom_complet(self):
+        return f"{self.prenom} {self.nom}" if self.prenom else self.nom
+
+    @property
+    def actif(self):
+        return self.date_depart is None or self.date_depart >= date.today()
+
+    def charge(self, annee):
+        """Total des affectations (en ETP) sur l'année."""
+        return sum(a.etp or 0 for a in self.affectations if a.annee == annee)
+
+    def niveau(self, competence_id):
+        return next((n.niveau for n in self.competences if n.competence_id == competence_id), 0)
+
+
+class Competence(db.Model):
+    __tablename__ = "competence"
+
+    id = db.Column(db.Integer, primary_key=True)
+    nom = db.Column(db.String(150), unique=True, nullable=False)
+    domaine = db.Column(db.String(100))
+    description = db.Column(db.Text)
+
+    niveaux = db.relationship("NiveauCompetence", back_populates="competence",
+                              cascade="all, delete-orphan")
+
+
+class NiveauCompetence(db.Model):
+    __tablename__ = "niveau_competence"
+    __table_args__ = (db.UniqueConstraint("agent_id", "competence_id"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    agent_id = db.Column(db.Integer, db.ForeignKey("agent.id"), nullable=False)
+    competence_id = db.Column(db.Integer, db.ForeignKey("competence.id"), nullable=False)
+    niveau = db.Column(db.Integer, nullable=False)          # 1 à 4, voir NIVEAUX
+
+    agent = db.relationship("Agent", back_populates="competences")
+    competence = db.relationship("Competence", back_populates="niveaux")
+
+
+class Appreciation(db.Model):
+    """Point fort ou axe de progrès, daté (garde l'historique)."""
+    __tablename__ = "appreciation"
+
+    id = db.Column(db.Integer, primary_key=True)
+    agent_id = db.Column(db.Integer, db.ForeignKey("agent.id"), nullable=False)
+    type = db.Column(db.String(10), nullable=False)          # voir TYPES_APPRECIATION
+    texte = db.Column(db.Text, nullable=False)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+
+    agent = db.relationship("Agent", back_populates="appreciations")
+
+
+class Affectation(db.Model):
+    """Part du temps d'un agent sur un projet / une activité pour une année (en ETP)."""
+    __tablename__ = "affectation"
+    __table_args__ = (db.UniqueConstraint("agent_id", "annee", "projet"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    agent_id = db.Column(db.Integer, db.ForeignKey("agent.id"), nullable=False)
+    annee = db.Column(db.Integer, nullable=False)
+    projet = db.Column(db.String(100), nullable=False)
+    etp = db.Column(db.Float, nullable=False)
+
+    agent = db.relationship("Agent", back_populates="affectations")
+
+
+class Formation(db.Model):
+    __tablename__ = "formation"
+
+    id = db.Column(db.Integer, primary_key=True)
+    agent_id = db.Column(db.Integer, db.ForeignKey("agent.id"), nullable=False)
+    intitule = db.Column(db.String(255), nullable=False)
+    organisme = db.Column(db.String(150))
+    date_debut = db.Column(db.Date)
+    duree_jours = db.Column(db.Float)
+    statut = db.Column(db.String(20), nullable=False, default="prévue")
+    competence_id = db.Column(db.Integer, db.ForeignKey("competence.id"))
+    commentaire = db.Column(db.Text)
+
+    agent = db.relationship("Agent", back_populates="formations")
+    competence = db.relationship("Competence")

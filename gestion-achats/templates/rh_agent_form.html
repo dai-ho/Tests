@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block titre %}{{ agent.nom_complet if agent.id else 'Nouvelle personne' }}{% endblock %}
+{% block contenu %}
+<a href="{{ url_for('rh.fiche_agent', agent_id=agent.id) if agent.id else url_for('rh.equipe') }}" class="small">← {{ agent.nom_complet if agent.id else 'Équipe' }}</a>
+<h3>{{ 'Modifier la fiche de ' ~ agent.nom_complet if agent.id else 'Nouvelle personne' }}</h3>
+<form method="post" class="card card-body" style="max-width: 50rem">
+  <div class="row g-3">
+    <div class="col-md-6"><label class="form-label">Nom *</label>
+      <input name="nom" class="form-control" required autofocus value="{{ agent.nom or '' }}"></div>
+    <div class="col-md-6"><label class="form-label">Prénom</label>
+      <input name="prenom" class="form-control" value="{{ agent.prenom or '' }}"></div>
+    <div class="col-md-6"><label class="form-label">Fonction</label>
+      <input name="fonction" class="form-control" placeholder="ex. ingénieur GNC" value="{{ agent.fonction or '' }}"></div>
+    <div class="col-md-3"><label class="form-label">Statut</label>
+      <input name="statut" class="form-control" list="liste-statuts" value="{{ agent.statut or '' }}">
+      <datalist id="liste-statuts">{% for s in statuts %}<option value="{{ s }}">{% endfor %}</datalist></div>
+    <div class="col-md-3"><label class="form-label">Quotité (ETP)</label>
+      <input name="etp" class="form-control" inputmode="decimal" value="{{ agent.etp|etp }}">
+      <div class="form-text">1 = temps plein, 0,8 = 80 %…</div></div>
+    <div class="col-md-4"><label class="form-label">Date d'arrivée</label>
+      <input name="date_arrivee" type="date" class="form-control" value="{{ agent.date_arrivee or '' }}"></div>
+    <div class="col-md-4"><label class="form-label">Date de départ</label>
+      <input name="date_depart" type="date" class="form-control" value="{{ agent.date_depart or '' }}">
+      <div class="form-text">Après cette date, la personne n'est plus comptée dans l'équipe.</div></div>
+    <div class="col-md-4"><label class="form-label">E-mail</label>
+      <input name="email" type="email" class="form-control" value="{{ agent.email or '' }}"></div>
+    <div class="col-12"><label class="form-label">Commentaire</label>
+      <textarea name="commentaire" class="form-control" rows="3">{{ agent.commentaire or '' }}</textarea></div>
+  </div>
+  <div class="d-flex gap-2 mt-4">
+    <button class="btn btn-primary">Enregistrer</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('rh.fiche_agent', agent_id=agent.id) if agent.id else url_for('rh.equipe') }}">Annuler</a>
+  </div>
+</form>
+{% endblock %}

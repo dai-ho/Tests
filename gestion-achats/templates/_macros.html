@@ -37,3 +37,11 @@
 {% macro montant(v, alerte_negatif=false) %}
 <td class="num {{ 'text-danger fw-bold' if alerte_negatif and v is not none and v < 0 }}" data-valeur="{{ v if v is not none else '' }}">{{ v|euros }}</td>
 {% endmacro %}
+
+{% macro niveau(n, libelles) %}
+{% if n %}<span class="niveau niveau-{{ n }}" title="{{ n }} – {{ libelles[n] }}">{% for i in range(1, 5) %}<i class="{{ 'plein' if i <= n }}"></i>{% endfor %}</span>{% endif %}
+{% endmacro %}
+
+{% macro charge(agent, annee, ecart) %}
+<span class="{{ ecart or '' }}" title="{{ 'Charge supérieure à la quotité' if ecart == 'surcharge' else ('Charge nettement inférieure à la quotité' if ecart == 'sous-charge' else '') }}">{{ agent.charge(annee)|etp or '0' }}</span><span class="text-muted"> / {{ agent.etp|etp }}</span>
+{% endmacro %}
