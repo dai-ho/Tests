@@ -68,7 +68,8 @@
       <th>Code</th><th>Désignation SAP</th><th>Description</th><th>Activité</th><th></th></tr></thead>
     {% for type_, activites in groupes %}
     <tbody>
-      <tr class="ligne-type"><td colspan="6">{{ type_ }}</td></tr>
+      <tr class="ligne-type"><td><input type="checkbox" class="form-check-input coche-groupe" title="Cocher tous les codes visibles de ce groupe"></td>
+        <td colspan="5">{{ type_ }} <span class="fw-normal text-muted small">({{ activites|sum(attribute='1', start=[])|length }})</span></td></tr>
       {% for activite, liste in activites %}
         {% for code in liste %}{% set e = elements.get(cle(code)) %}
         <tr>
@@ -89,16 +90,24 @@
     {% endfor %}
   </table></div>
 
-  <div class="card card-body barre-actions">
-    <div class="small mb-2"><strong id="nb-coches">0</strong> code(s) coché(s) :</div>
+  <div class="card card-body barre-actions" id="barre-codes">
+    <div class="small mb-2"><strong id="nb-coches">0</strong> code(s) coché(s)
+      <span class="text-muted">— astuce : Maj + clic coche toute une plage ; la case d'un en-tête coche tout le groupe</span>
+      <button type="button" class="btn btn-link btn-sm p-0 ms-2" id="decocher">Tout décocher</button></div>
     <div class="d-flex flex-wrap gap-3 align-items-end">
+      <div class="d-flex gap-2 align-items-end">
+        <select name="nouveau_type" class="form-select form-select-sm" style="max-width: 18rem">
+          {% for t in types %}<option>{{ t }}</option>{% endfor %}
+        </select>
+        <button class="btn btn-sm btn-primary" name="action" value="type">Classer dans ce type</button>
+      </div>
       <div class="d-flex gap-2 align-items-end">
         <select name="activite_id" class="form-select form-select-sm" style="max-width: 20rem">
           <option value="">— activité existante —</option>
           {% for t, liste in activites.items() if liste %}<optgroup label="{{ t }}">
             {% for a in liste %}<option value="{{ a.id }}">{{ a.nom }} ({{ a.codes|length }})</option>{% endfor %}</optgroup>{% endfor %}
         </select>
-        <button class="btn btn-sm btn-primary" name="action" value="rattacher">Rattacher</button>
+        <button class="btn btn-sm btn-outline-primary" name="action" value="rattacher">Rattacher</button>
       </div>
       <div class="d-flex gap-2 align-items-end">
         <input name="nouvelle_activite" class="form-control form-control-sm" placeholder="Nouvelle activité (ex. TOTO)" style="width: 13rem">
@@ -106,12 +115,6 @@
           {% for t in types %}<option {{ 'selected' if t == type_filtre }}>{{ t }}</option>{% endfor %}
         </select>
         <button class="btn btn-sm btn-outline-primary" name="action" value="creer">Créer et rattacher</button>
-      </div>
-      <div class="d-flex gap-2 align-items-end">
-        <select name="nouveau_type" class="form-select form-select-sm" style="max-width: 16rem">
-          {% for t in types %}<option>{{ t }}</option>{% endfor %}
-        </select>
-        <button class="btn btn-sm btn-outline-secondary" name="action" value="type">Changer le type</button>
       </div>
       <button class="btn btn-sm btn-outline-secondary" name="action" value="retirer">Retirer de l'activité</button>
       <button class="btn btn-sm btn-outline-danger" name="action" value="supprimer"
@@ -145,11 +148,44 @@
 {% endif %}
 <script>
   const cases = () => Array.from(document.querySelectorAll(".case-code"));
-  const majCompte = () => (document.getElementById("nb-coches").textContent = cases().filter((c) => c.checked).length);
+  const visibles = () => cases().filter((c) => !c.closest("tr").hidden);
+  const majCompte = () => {
+    const n = cases().filter((c) => c.checked).length;
+    document.getElementById("nb-coches").textContent = n;
+    document.getElementById("barre-codes")?.classList.toggle("flottante", n > 0);
+  };
   document.getElementById("tout-cocher")?.addEventListener("change", (e) => {
-    cases().filter((c) => !c.closest("tr").hidden).forEach((c) => (c.checked = e.target.checked));
+    visibles().forEach((c) => (c.checked = e.target.checked));
     majCompte();
   });
-  cases().forEach((c) => c.addEventListener("change", majCompte));
+  document.querySelectorAll(".coche-groupe").forEach((g) => g.addEventListener("change", () => {
+    g.closest("tbody").querySelectorAll(".case-code").forEach((c) => { if (!c.closest("tr").hidden) c.checked = g.checked; });
+    majCompte();
+  }));
+  document.getElementById("decocher")?.addEventListener("click", () => {
+    document.querySelectorAll(".case-code, .coche-groupe, #tout-cocher").forEach((c) => (c.checked = false));
+    majCompte();
+  });
+  // Maj + clic : coche (ou décoche) toute la plage depuis la dernière case cliquée
+  let derniere = null;
+  const cliquer = (caseCode, maj) => {
+    if (maj && derniere && derniere !== caseCode) {
+      const liste = visibles(), a = liste.indexOf(derniere), b = liste.indexOf(caseCode);
+      if (a >= 0 && b >= 0) liste.slice(Math.min(a, b), Math.max(a, b) + 1).forEach((c) => (c.checked = caseCode.checked));
+    }
+    derniere = caseCode;
+    majCompte();
+  };
+  cases().forEach((c) => c.addEventListener("click", (e) => cliquer(c, e.shiftKey)));
+  // Un clic sur la ligne (hors lien et bouton) coche sa case
+  document.querySelectorAll("#table-codes tbody tr:not(.ligne-type)").forEach((tr) => tr.addEventListener("click", (e) => {
+    if (e.target.closest("a, button, input")) return;
+    const c = tr.querySelector(".case-code");
+    if (!c) return;
+    c.checked = !c.checked;
+    cliquer(c, e.shiftKey);
+    if (e.shiftKey) window.getSelection()?.removeAllRanges();
+  }));
+  majCompte();
 </script>
 {% endblock %}

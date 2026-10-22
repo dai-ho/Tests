@@ -151,3 +151,11 @@ td.actions form { display: inline; }
 .plan-charge tfoot td { border-top: 1px solid #39414a; }
 .barre-actions { position: sticky; bottom: 0; z-index: 5; background: var(--surface); padding: .6rem; border-top: 1px solid var(--bordure); }
 #table-codes tr.ligne-type td { --bs-table-bg: #20262d; font-weight: 600; color: #e4e8ed; }
+
+/* Barre d'actions sur les codes cochés : flottante en bas de l'écran dès qu'une case est cochée */
+#barre-codes.flottante { position: fixed; left: 14.5rem; right: 0; bottom: 0; z-index: 30; margin: 0;
+  border-radius: 0; border-top: 2px solid var(--accent); box-shadow: 0 -.5rem 1.5rem rgba(0, 0, 0, .5); }
+@media (max-width: 900px) { #barre-codes.flottante { left: 0; } }
+#table-codes tbody tr:not(.ligne-type) { cursor: pointer; }
+#table-codes tbody tr:has(.case-code:checked) td { --bs-table-bg: rgba(79, 124, 171, .16); }
+main:has(#barre-codes.flottante) { padding-bottom: 9rem !important; }
