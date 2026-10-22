@@ -9,7 +9,7 @@ from formulaires import (champ, champ_date, champ_entier, champ_montant, enregis
 import referentiel
 import temps
 from models import (NIVEAUX, STATUTS_AGENT, STATUTS_FORMATION, TYPE_NON_CLASSE, TYPES_APPRECIATION,
-                    TYPES_CODE, Activite, Affectation, Agent, Appreciation, Competence,
+                    TYPES_CODE, Activite, Affectation, Agent, AliasCode, Appreciation, Competence,
                     ElementRecepteur, Formation, NiveauCompetence, TempsSaisi, db)
 
 bp = Blueprint("rh", __name__, url_prefix="/rh")
@@ -228,6 +228,8 @@ def plan_charge():
         # Colonnes affichées (une case vide = pas d'affectation) + éventuelle nouvelle colonne
         colonnes = [(i, p.strip(), True) for i, p in enumerate(request.form.getlist("projet"))]
         nouveau = champ("nouveau_projet")
+        if nouveau:
+            nouveau = referentiel.table_canonique().get(referentiel.cle(nouveau), nouveau)
         if nouveau and nouveau not in [p for _, p, _ in colonnes]:
             colonnes.append(("nouveau", nouveau, False))
         erreurs = 0
@@ -337,9 +339,11 @@ def codes():
     if type_filtre:
         groupes = [g for g in groupes if g[0] == type_filtre]
     comptes = {t: sum(len(l) for _, l in acts) for t, acts in referentiel.regrouper(tous)}
+    doublons = referentiel.doublons_probables(tous)
     return render_template("rh_codes.html", groupes=groupes, elements=elements, types=TYPES_CODE,
                            type_non_classe=TYPE_NON_CLASSE, type_filtre=type_filtre,
                            comptes=comptes, activites=referentiel.activites_par_type(),
+                           doublons=doublons,
                            cle=referentiel.cle)
 
 
@@ -445,6 +449,80 @@ def actions_codes():
     db.session.commit()
     flash(f"{len(choisis)} code(s) {message}.", "success")
     return redirect(retour)
+
+
+@bp.route("/codes/modifier", methods=["GET", "POST"])
+def modifier_code():
+    """Modification d'un code du référentiel (?id=…) ou d'un code seulement utilisé (?code=…),
+    qui est alors ajouté au référentiel. Renommer vers un code existant fusionne les deux."""
+    element_id = request.args.get("id", type=int)
+    code_utilise = request.args.get("code", "")
+    element = db.get_or_404(ElementRecepteur, element_id) if element_id else None
+    code_actuel = element.code if element else code_utilise.strip()
+    if not code_actuel:
+        return redirect(url_for("rh.codes"))
+    retour = url_for("rh.codes", type=request.args.get("type") or None)
+    if request.method == "POST":
+        nouveau = champ("code") or code_actuel
+        if element is None:
+            existant = referentiel.elements_par_code(avec_alias=True).get(referentiel.cle(code_actuel))
+            element = existant or ElementRecepteur(code=code_actuel)
+            db.session.add(element)
+            db.session.flush()
+        ancien = element.code
+        conserve = referentiel.renommer(element, nouveau)
+        if conserve is not element:
+            db.session.commit()
+            flash(f"« {ancien} » fusionné dans « {conserve.code} » : temps et plan de charge reportés, "
+                  "l'ancienne graphie est gardée comme alias.", "success")
+            return redirect(url_for("rh.modifier_code", id=conserve.id))
+        type_ = champ("type")
+        element.type = type_ if type_ in TYPES_CODE else None
+        activite = db.session.get(Activite, request.form.get("activite_id", type=int) or 0)
+        element.activite = activite if activite and activite.type == element.type else None
+        element.designation, element.description = champ("designation"), champ("description")
+        db.session.commit()
+        flash(f"Code « {element.code} » enregistré"
+              + (f" (ancien code « {ancien} » gardé comme alias)" if referentiel.cle(ancien) != referentiel.cle(element.code) else "")
+              + ".", "success")
+        return redirect(retour)
+    tous = sorted(set(temps.codes_connus()) | {e.code for e in ElementRecepteur.query})
+    return render_template("rh_code_form.html", element=element, code=code_actuel, types=TYPES_CODE,
+                           activites=referentiel.activites_par_type(), retour=retour,
+                           autres_codes=[c for c in tous if referentiel.cle(c) != referentiel.cle(code_actuel)])
+
+
+@bp.post("/codes/fusionner")
+def fusionner_codes():
+    """Fusion d'une ou plusieurs variantes dans un code de référence (doublons probables)."""
+    cible_code = champ("cible")
+    # Toutes les graphies du groupe, sauf celle choisie comme référence
+    variantes = [v for v in request.form.getlist("groupe")
+                 if v.strip() and referentiel.cle(v) != referentiel.cle(cible_code)]
+    if not cible_code or not variantes:
+        return redirect(url_for("rh.codes"))
+    elements = referentiel.elements_par_code(avec_alias=True)
+    cible = elements.get(referentiel.cle(cible_code))
+    if cible is None:
+        cible = ElementRecepteur(code=cible_code)
+        db.session.add(cible)
+        db.session.flush()
+    for v in variantes:
+        source = referentiel.elements_par_code().get(referentiel.cle(v))
+        referentiel.fusionner(v, cible, source=source if source is not cible else None)
+    db.session.commit()
+    flash(f"{', '.join(variantes)} fusionné(s) dans « {cible.code} ».", "success")
+    return redirect(url_for("rh.codes"))
+
+
+@bp.post("/codes/alias/<int:alias_id>/supprimer")
+def supprimer_alias(alias_id):
+    a = db.get_or_404(AliasCode, alias_id)
+    element_id = a.element_id
+    db.session.delete(a)
+    db.session.commit()
+    flash("Alias supprimé : cette graphie ne sera plus convertie à l'import.", "success")
+    return redirect(url_for("rh.modifier_code", id=element_id))
 
 
 @bp.post("/codes/<int:element_id>/supprimer")

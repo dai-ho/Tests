@@ -146,7 +146,11 @@ def importer(fichier, nom_fichier):
     crees = []
     # Agrégation : plusieurs lignes identiques (même agent, code, date) sont additionnées
     cumul = {}
+    # Autres graphies d'un code (alias) converties vers le code de référence
+    from referentiel import cle, table_canonique
+    canonique = table_canonique()
     for nom_brut, code, d, h in saisies:
+        code = canonique.get(cle(code), code)
         prenom, nom = decouper_nom(nom_brut)
         agent = agents.get((normaliser(prenom), normaliser(nom)))
         if agent is None:

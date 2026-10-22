@@ -426,3 +426,17 @@ class ElementRecepteur(db.Model):
     activite_id = db.Column(db.Integer, db.ForeignKey("activite.id"))
 
     activite = db.relationship("Activite", back_populates="codes")
+    alias = db.relationship("AliasCode", back_populates="element", cascade="all, delete-orphan",
+                            order_by="AliasCode.alias")
+
+
+class AliasCode(db.Model):
+    """Autre graphie d'un code (ex. « (C-TOTO_/10) » pour « C-TOTO_/10 ») : les imports
+    la convertissent vers le code de référence."""
+    __tablename__ = "alias_code"
+
+    id = db.Column(db.Integer, primary_key=True)
+    alias = db.Column(db.String(255), unique=True, nullable=False)
+    element_id = db.Column(db.Integer, db.ForeignKey("element_recepteur.id"), nullable=False)
+
+    element = db.relationship("ElementRecepteur", back_populates="alias")

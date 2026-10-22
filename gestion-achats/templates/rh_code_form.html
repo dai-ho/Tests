@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block titre %}Code {{ code }}{% endblock %}
+{% block contenu %}
+<a href="{{ retour }}" class="small">← Codes et activités</a>
+<h3>Modifier le code <code>{{ code }}</code></h3>
+{% if not element %}<p class="text-muted">Ce code est utilisé (temps, plan de charge, DA…) mais pas encore référencé : il sera ajouté au référentiel.</p>{% endif %}
+<form method="post" class="card card-body mb-4" style="max-width: 50rem">
+  <div class="row g-3">
+    <div class="col-md-6"><label class="form-label">Code EOTP *</label>
+      <input name="code" class="form-control" required value="{{ code }}" list="autres-codes">
+      <datalist id="autres-codes">{% for c in autres_codes %}<option value="{{ c }}">{% endfor %}</datalist>
+      <div class="form-text">Pour corriger un doublon, saisissez le code correct : s'il existe déjà, les deux sont <strong>fusionnés</strong>
+        (temps et plan de charge reportés, l'ancienne graphie devient un alias converti aux prochains imports).</div></div>
+    <div class="col-md-6"><label class="form-label">Type</label>
+      <select name="type" class="form-select" id="type">
+        <option value="">— non classé —</option>
+        {% for t in types %}<option {{ 'selected' if element and element.type == t }}>{{ t }}</option>{% endfor %}
+      </select></div>
+    <div class="col-md-6"><label class="form-label">Désignation SAP</label>
+      <input name="designation" class="form-control" value="{{ element.designation if element and element.designation else '' }}"></div>
+    <div class="col-md-6"><label class="form-label">Activité</label>
+      <select name="activite_id" class="form-select" id="activite">
+        <option value="">— aucune —</option>
+        {% for t, liste in activites.items() if liste %}<optgroup label="{{ t }}" data-type="{{ t }}">
+          {% for a in liste %}<option value="{{ a.id }}" {{ 'selected' if element and element.activite_id == a.id }}>{{ a.nom }}</option>{% endfor %}</optgroup>{% endfor %}
+      </select>
+      <div class="form-text">Seules les activités du type choisi sont proposées.</div></div>
+    <div class="col-12"><label class="form-label">Description</label>
+      <textarea name="description" class="form-control" rows="2">{{ element.description if element and element.description else '' }}</textarea></div>
+  </div>
+  <div class="d-flex gap-2 mt-4"><button class="btn btn-primary">Enregistrer</button>
+    <a class="btn btn-outline-secondary" href="{{ retour }}">Annuler</a></div>
+</form>
+
+{% if element and element.alias %}
+<h5>Autres graphies (alias)</h5>
+<p class="small text-muted">Ces graphies sont converties en <code>{{ element.code }}</code> lors des imports de temps et de la saisie du plan de charge.</p>
+<table class="table table-sm align-middle" style="max-width: 30rem">
+  {% for a in element.alias %}
+  <tr><td><code>{{ a.alias }}</code></td>
+    <td class="actions"><form method="post" action="{{ url_for('rh.supprimer_alias', alias_id=a.id) }}" data-confirmer="Supprimer cet alias ?">
+      <button class="btn btn-sm btn-outline-danger">✕</button></form></td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+<script>
+  // Activités proposées selon le type choisi
+  const type = document.getElementById("type"), activite = document.getElementById("activite");
+  const filtrer = () => {
+    activite.querySelectorAll("optgroup").forEach((g) => {
+      g.hidden = g.dataset.type !== type.value;
+      if (g.hidden && activite.selectedOptions[0]?.parentElement === g) activite.value = "";
+    });
+  };
+  type.addEventListener("change", filtrer);
+  filtrer();
+</script>
+{% endblock %}

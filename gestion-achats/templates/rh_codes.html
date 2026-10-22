@@ -35,6 +35,28 @@
   </div>
 </div>
 
+{% if doublons and not type_filtre %}
+<div class="card card-body mb-4">
+  <h6>Doublons probables <span class="badge bg-warning text-dark">{{ doublons|length }}</span></h6>
+  <p class="small text-muted mb-2">Codes identiques une fois retirés parenthèses, espaces et majuscules. La fusion reporte les temps
+    et le plan de charge sur le code conservé ; l'autre graphie devient un alias, converti automatiquement aux prochains imports.</p>
+  <table class="table table-sm align-middle mb-0" style="max-width: 60rem">
+    {% for cible, variantes in doublons %}
+    <tr><td>
+      <form method="post" action="{{ url_for('rh.fusionner_codes') }}" class="d-flex flex-wrap gap-2 align-items-center">
+        {% for v in [cible] + variantes %}<input type="hidden" name="groupe" value="{{ v }}">{% endfor %}
+        {% for v in variantes %}<code>{{ v }}</code>{% endfor %}
+        <span class="text-muted">→ conserver</span>
+        <select name="cible" class="form-select form-select-sm" style="width: auto">
+          {% for choix in [cible] + variantes %}<option {{ 'selected' if choix == cible }}>{{ choix }}</option>{% endfor %}
+        </select>
+        <button class="btn btn-sm btn-outline-primary">Fusionner</button>
+      </form></td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
 {% if not groupes %}
   <p class="text-muted">Aucun code : importez les fichiers CSV de chaque type, ou importez des temps réalisés.</p>
 {% else %}
@@ -51,7 +73,9 @@
         {% for code in liste %}{% set e = elements.get(cle(code)) %}
         <tr>
           <td><input type="checkbox" class="form-check-input case-code" name="code" value="{{ 'id:' ~ e.id if e else code }}"></td>
-          <td class="text-nowrap text-truncate" style="max-width: 16rem" title="{{ code }}">{{ code }}</td>
+          <td class="text-nowrap text-truncate" style="max-width: 16rem" title="{{ code }}">
+            <a href="{{ url_for('rh.modifier_code', id=e.id, type=type_filtre or None) if e else url_for('rh.modifier_code', code=code, type=type_filtre or None) }}" title="Modifier / fusionner">{{ code }}</a>
+            {% if e and e.alias %}<div class="small text-muted text-truncate" title="Autres graphies">alias : {{ e.alias|map(attribute='alias')|join(', ') }}</div>{% endif %}</td>
           <td class="small">{{ e.designation if e and e.designation }}</td>
           <td class="small text-muted">{{ e.description if e and e.description }}</td>
           <td class="small">{% if e and e.activite %}{{ e.activite.nom }}{% else %}<span class="text-muted">—</span>{% endif %}</td>

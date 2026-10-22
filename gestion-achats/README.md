@@ -59,6 +59,9 @@ Une barre latérale donne accès à deux espaces :
   - **Codes et activités** : référentiel des codes EOTP (type, désignation SAP, description) importé par type
     depuis un CSV (code EOTP, désignation SAP, description, cible MSO — ignorée) ; regroupement manuel des codes
     en activités ; les codes utilisés mais absents du référentiel apparaissent en « Non classé ».
+    Chaque code est modifiable ; renommer un code vers un code existant les fusionne (temps et plan de charge
+    reportés et cumulés), l'ancienne graphie devenant un alias converti aux imports suivants. Les doublons
+    probables (mêmes codes aux parenthèses, espaces et majuscules près) sont signalés avec un bouton « Fusionner ».
   - **Temps réalisés** : import du marquage des temps (Excel ou CSV à 4 colonnes : Genre Prénom NOM, objet
     récepteur, date, heures saisies). Les saisies de la période couverte par le fichier sont remplacées (pas de
     doublon en cas de réimport), les personnes inconnues sont créées. Synthèse par personne et centre de coût, en
